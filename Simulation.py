@@ -9,8 +9,6 @@ from numba import njit
 @njit()
 def Reliability(solution, flexible, start=None, end=None):
     """Single-solution version of Reliability"""
-    assert solution.nvec == 1 
-    assert solution.vectorised is False
 
     if start is None and end is None: 
         Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
