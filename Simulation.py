@@ -7,49 +7,31 @@ import numpy as np
 from numba import njit
 
 @njit()
-def Reliability(solution, flexible, start=None, end=None):
+def Reliability(solution, flexible):
     """Single-solution version of Reliability"""
 
-    if start is None and end is None: 
-        Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
-                   solution.GBaseload.sum(axis=1) - flexible)
-        intervals = solution.intervals
-
-    else: 
-        Netload = ((solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
-                   solution.GBaseload.sum(axis=1))[start:end] - flexible)
-        intervals = len(Netload)
+    Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
+               solution.GBaseload.sum(axis=1) - flexible)
+    intervals = solution.intervals
 
     Pcapacity = solution.CPHP.sum() * 1000 # S-CPHP(j), GW to MW
     Scapacity = solution.CPHS * 1000 # S-CPHS(j), GWh to MWh
     efficiency, resolution = solution.efficiency, solution.resolution 
 
-    Discharge = np.zeros(intervals)
-    Charge = np.zeros(intervals)
-    Storage = np.zeros(intervals)
+    solution.Discharge = np.zeros(intervals)
+    solution.Charge = np.zeros(intervals)
+    solution.Storage = np.zeros(intervals)
     
-    Storaget_1 =  0.5*Scapacity
+    solution.Storage[-1] =  0.5*Scapacity
     for t in range(intervals):
-        Netloadt = Netload[t]
+        solution.Discharge[t] = np.minimum(np.minimum(np.maximum(0, Netload[t]), Pcapacity), solution.Storage[t-1] / resolution)
+        solution.Charge[t] = np.minimum(np.minimum(-1 * np.minimum(0, Netload[t]), Pcapacity), (Scapacity - solution.Storage[t-1]) / efficiency / resolution)
+        solution.Storage[t] = solution.Storage[t-1] - solution.Discharge[t] * resolution + solution.Charge[t] * resolution * efficiency
 
-        Discharget = np.minimum(np.minimum(np.maximum(0, Netloadt), Pcapacity), Storaget_1 / resolution)
-        Charget = np.minimum(np.minimum(-1 * np.minimum(0, Netloadt), Pcapacity), (Scapacity - Storaget_1) / efficiency / resolution)
-        Storaget = Storaget_1 - Discharget * resolution + Charget * resolution * efficiency
-        Storaget_1 = Storaget
-        
-        Discharge[t] = Discharget
-        Charge[t] = Charget
-        Storage[t] = Storaget
-
-    Deficit = np.maximum(Netload - Discharge, np.zeros(intervals))
-    Spillage = -1 * np.minimum(Netload + Charge, np.zeros(intervals))
+    solution.Deficit = np.maximum(Netload - solution.Discharge, 0)
+    solution.Spillage = -1 * np.minimum(Netload + solution.Charge, 0)
 
     solution.flexible = flexible
-    solution.Spillage = Spillage
-    solution.Charge = Charge
-    solution.Discharge = Discharge
-    solution.Storage = Storage
-    solution.Deficit = Deficit
 
-    return Deficit
+    return solution.Deficit
 
