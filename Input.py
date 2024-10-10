@@ -15,14 +15,13 @@ parser.add_argument('-p', default=100, type=int, required=False, help='popsize=2
 parser.add_argument('-m', default=0.5, type=float, required=False, help='mutation=0.5')
 parser.add_argument('-r', default=0.3, type=float, required=False, help='recombination=0.3')
 
-parser.add_argument('-s', default=21, type=int, required=False, help='11, 12, 13, ...')
+parser.add_argument('-s', default=31, type=int, required=False, help='11, 12, 13, ...')
 
 parser.add_argument('-cb', default=2, type=int, required=False, help='Callback: 0-None, 1-generation elites, 2-everything')
 parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
 parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
 
 args = parser.parse_args()
-assert args.w > 0 or args.w in (-1, -2)
 scenario = args.s
 
 Nodel = np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])
@@ -31,7 +30,6 @@ Windl = np.array(['NSW']*8 + ['FNQ']*1 + ['QLD']*2 + ['FNQ']*2 + ['SA']*8 + ['TA
 
 n_node = dict((name, i) for i, name in enumerate(Nodel))
 Nodel_int, PVl_int, Windl_int = (np.array([n_node[node] for node in x], dtype=np.int64) for x in (Nodel, PVl, Windl))
-
 Nodel_int, PVl_int, Windl_int = (x.astype(np.int64) for x in (Nodel_int, PVl_int, Windl_int))
 
 resolution = 0.5
@@ -87,6 +85,13 @@ elif scenario>=21:
     Nodel_int, PVl_int, Windl_int = [x[np.isin(x, coverage_int)] for x in (Nodel_int, PVl_int, Windl_int)]
     Nodel, PVl, Windl = [x[np.isin(x, coverage)] for x in (Nodel, PVl, Windl)]
 
+if scenario >= 31:
+    TSPV = np.stack([TSPV[:, PVl==node].mean(axis=1) for node in np.unique(PVl)]).T
+    TSWind = np.stack([TSWind[:, Windl==node].mean(axis=1) for node in np.unique(Windl)]).T
+    
+    Nodel_int, PVl_int, Windl_int = [np.unique(x) for x in (Nodel_int, PVl_int, Windl_int)]
+    Nodel, PVl, Windl = [np.unique(x)  for x in (Nodel, PVl, Windl)]
+    
     
 intervals, nodes = MLoad.shape
 years = int(resolution * intervals / 8760)
@@ -101,8 +106,7 @@ GBaseload = np.tile(CBaseload, (intervals, 1)) * pow(10, 3) # GW to MW
 
 
 lb = np.array([0.]  * pzones + [0.]   * wzones + contingency   + [0.])
-# ub = np.array([16.] * pzones + [16.]  * wzones + list(np.array(contingency)+16) + [512.])
-ub = np.array([50.] * pzones + [50.]  * wzones + nodes*[50.] + [2048.])
+ub = np.array([32.] * pzones + [32.]  * wzones + nodes*[16.] + [1024.])
 
 #%%
 from Simulation import Reliability

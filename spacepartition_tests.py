@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Sep 12 12:12:38 2024
+#Tests for space partition algorithm 
+#Note: these are not and are not intended to be comprehensive
+#    They simply test a few key behaviours
 
-@author: u6942852
-"""
 
 import unittest
 import numpy as np

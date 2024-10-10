@@ -9,7 +9,6 @@ from numba import njit, int64
 @njit()
 def Transmission(solution, output=False):
     
-    assert solution.vectorised is False
     nodes, intervals = solution.nodes, solution.intervals
     MPV, MWind = np.zeros((nodes, intervals)), np.zeros((nodes, intervals))
     

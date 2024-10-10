@@ -9,8 +9,6 @@ from numba import njit
 @njit()
 def Reliability(solution, flexible, start=None, end=None):
     """Single-solution version of Reliability"""
-    assert solution.nvec == 1 
-    assert solution.vectorised is False
 
     if start is None and end is None: 
         Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
@@ -33,7 +31,6 @@ def Reliability(solution, flexible, start=None, end=None):
     Storaget_1 =  0.5*Scapacity
     for t in range(intervals):
         Netloadt = Netload[t]
-        
 
         Discharget = np.minimum(np.minimum(np.maximum(0, Netloadt), Pcapacity), Storaget_1 / resolution)
         Charget = np.minimum(np.minimum(-1 * np.minimum(0, Netloadt), Pcapacity), (Scapacity - Storaget_1) / efficiency / resolution)
