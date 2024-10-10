@@ -86,8 +86,10 @@ elif scenario>=21:
     Nodel, PVl, Windl = [x[np.isin(x, coverage)] for x in (Nodel, PVl, Windl)]
 
 if scenario >= 31:
-    TSPV = np.stack([TSPV[:, PVl==node].mean(axis=1) for node in np.unique(PVl)]).T
-    TSWind = np.stack([TSWind[:, Windl==node].mean(axis=1) for node in np.unique(Windl)]).T
+    TSPV = np.stack([TSPV[:, PVl==node].mean(axis=1) for node in coverage]).T
+    TSWind = np.stack([TSWind[:, Windl==node].mean(axis=1) for node in coverage]).T
+    # having full of zeros and setting lb,ub=0,0 makes code faster
+    TSPV = np.nan_to_num(TSPV, False, 0)
     
     Nodel_int, PVl_int, Windl_int = [np.unique(x) for x in (Nodel_int, PVl_int, Windl_int)]
     Nodel, PVl, Windl = [np.unique(x)  for x in (Nodel, PVl, Windl)]
@@ -95,18 +97,16 @@ if scenario >= 31:
     
 intervals, nodes = MLoad.shape
 years = int(resolution * intervals / 8760)
-pzones, wzones = (TSPV.shape[1], TSWind.shape[1])
-pidx, widx, sidx = (pzones, pzones + wzones, pzones + wzones + nodes)
+pzones, wzones = (len(PVl), len(Windl))
+pidx, widx, sidx = (pzones + 1, pzones + 1 + wzones, pzones + 1 + wzones + nodes)
 
 energy = MLoad.sum() * pow(10, -9) * resolution / years # PWh p.a.
 contingency = list(0.25 * MLoad.max(axis=0) * pow(10, -3)) # MW to GW
 
 GBaseload = np.tile(CBaseload, (intervals, 1)) * pow(10, 3) # GW to MW
 
-
-
-lb = np.array([0.]  * pzones + [0.]   * wzones + contingency   + [0.])
-ub = np.array([32.] * pzones + [32.]  * wzones + nodes*[16.] + [1024.])
+lb = np.array([0., 0., 0., 0., 0.] + [0.]   * wzones + contingency   + [0.])
+ub = np.array([32., 32., 32., 0, 32.] + [32.]  * wzones + nodes*[16.] + [1024.])
 
 #%%
 from Simulation import Reliability
@@ -152,7 +152,6 @@ def F(S):
 # Specify the types for jitclass
 solution_spec = [
     ('x', float64[:]),  # x is 1d array
-    ('nvec', int64),
     ('MLoad', float64[:, :]),  # 2D array of floats
     ('intervals', int64),
     ('nodes', int64),
@@ -216,7 +215,6 @@ class Solution:
         assert len(x) == len(lb)
         
         self.x = x
-        self.nvec = 1
         
         self.intervals, self.nodes = intervals, nodes
         self.resolution = resolution
@@ -257,11 +255,12 @@ if __name__=='__main__':
     print(solution.LCOE, solution.LCOG, solution.LCOBS, solution.LCOBT, solution.LCOBL)
 
     
-    def test():
+    def test(printout=True):
         x = np.random.rand(len(lb))*(ub-lb)+lb
         solution = Solution(x)#/1.25) 
         solution._evaluate()
-        print(solution.LCOE, solution.Penalties)
-        print(solution.LCOE, solution.LCOG, solution.LCOBS, solution.LCOBT, solution.LCOBL)
+        if printout:
+            print(solution.LCOE, solution.Penalties)
+            print(solution.LCOE, solution.LCOG, solution.LCOBS, solution.LCOBT, solution.LCOBL)
     # test()
         
