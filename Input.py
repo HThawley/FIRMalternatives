@@ -86,10 +86,14 @@ elif scenario>=21:
     Nodel, PVl, Windl = [x[np.isin(x, coverage)] for x in (Nodel, PVl, Windl)]
 
 if scenario >= 31:
+    import warnings
+    warnings.simplefilter('ignore', RuntimeWarning)
+    
     TSPV = np.stack([TSPV[:, PVl==node].mean(axis=1) for node in coverage]).T
     TSWind = np.stack([TSWind[:, Windl==node].mean(axis=1) for node in coverage]).T
     # having full of zeros and setting lb,ub=0,0 makes code faster
     TSPV = np.nan_to_num(TSPV, False, 0)
+    warnings.simplefilter('default', RuntimeWarning)
     
     Nodel_int, PVl_int, Windl_int = [np.unique(x) for x in (Nodel_int, PVl_int, Windl_int)]
     Nodel, PVl, Windl = [np.unique(x)  for x in (Nodel, PVl, Windl)]
@@ -98,7 +102,9 @@ if scenario >= 31:
 intervals, nodes = MLoad.shape
 years = int(resolution * intervals / 8760)
 pzones, wzones = (len(PVl), len(Windl))
-pidx, widx, sidx = (pzones + 1, pzones + 1 + wzones, pzones + 1 + wzones + nodes)
+if scenario >= 31:
+    pzones+=1
+pidx, widx, sidx = (pzones, pzones + wzones, pzones + wzones + nodes)
 
 energy = MLoad.sum() * pow(10, -9) * resolution / years # PWh p.a.
 contingency = list(0.25 * MLoad.max(axis=0) * pow(10, -3)) # MW to GW
@@ -106,7 +112,7 @@ contingency = list(0.25 * MLoad.max(axis=0) * pow(10, -3)) # MW to GW
 GBaseload = np.tile(CBaseload, (intervals, 1)) * pow(10, 3) # GW to MW
 
 lb = np.array([0., 0., 0., 0., 0.] + [0.]   * wzones + contingency   + [0.])
-ub = np.array([32., 32., 32., 0, 32.] + [32.]  * wzones + nodes*[16.] + [1024.])
+ub = np.array([32., 32., 32., 0, 32.] + [32.]  * wzones + list(np.array(contingency)+16) + [1024.])
 
 #%%
 from Simulation import Reliability

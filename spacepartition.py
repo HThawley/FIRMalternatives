@@ -31,7 +31,7 @@ spec = [
 
 @jitclass(spec)
 class hyperrectangle():
-    def __init__(self, centre, f, generation, cuts, extras, half_length):
+    def __init__(self, centre, f, generation, cuts, half_length, extras=np.array([], np.float64)):
         self.centre = centre
         self.f = f
         self.half_length = half_length
@@ -117,7 +117,7 @@ class Spacepartition:
         else:
             extras = np.array([], np.float64)
         
-        self.elite = hyperrectangle(centre, f, -1, 0, extras, (self.ub-self.lb)/2)
+        self.elite = hyperrectangle(centre, f, -1, 0, (self.ub-self.lb)/2, extras)
         self.childless = np.array([self.elite], dtype=hyperrectangle)
         
         self.new_resolved = np.array([], dtype=hyperrectangle)
@@ -125,6 +125,13 @@ class Spacepartition:
         self.ll_resolved = np.array([], dtype=hyperrectangle)
     
     def Initiate(self):
+        #compile
+        self._dividefunc(self.func, 
+                         self.childless[0], 
+                         np.array([0]), 
+                         self.f_args, 
+                         np.inf, 
+                         self.nextras)
         if self.restart == '':
             for file in ('parents', 'children', 'resolved'):
                 self._printout(np.array([]), file, 'w')
@@ -301,7 +308,8 @@ class Spacepartition:
             if self.eligible.sum() > 0:
                 # rectangles failing beyond maximal extent of near-optimal resolved are ineligible
                 self.eligible[self.eligible] = ~_borderheuristic(list(self.childless[self.eligible]), 
-                                                                 list(self.edge_resolved[self.noptimal_resolved]))
+                                                                 list(self.edge_resolved[self.noptimal_resolved]), 
+                                                                 self.lb==self.ub)
             print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
         
             best = self._time_long_func(self._find_neighbours_parent, self.eligible, self.eligible.sum(), self.eligible.sum()*self.noptimal_resolved.sum())
@@ -317,11 +325,13 @@ class Spacepartition:
             if self.eligible.sum() > 0:
                 # rectangles failing beyond maximal extent of near-optimal resolved are ineligible
                 self.eligible[self.eligible] = ~_borderheuristic(list(self.childless[self.eligible]), 
-                                                                 list(self.edge_noptimal))
-            print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
-        
-            best = self._time_long_func(self._find_neighbours_polish, self.eligible, self.eligible.sum(), self.eligible.sum()*len(self.edge_noptimal))
-            self.eligible[self.eligible] = best
+                                                                 list(self.edge_noptimal), 
+                                                                 self.lb==self.ub)
+            if self.eligible.sum() > 0:
+                print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
+            
+                best = self._time_long_func(self._find_neighbours_polish, self.eligible, self.eligible.sum(), self.eligible.sum()*len(self.edge_noptimal))
+                self.eligible[self.eligible] = best
             return self.eligible
         else:
             return np.zeros(len(self.childless), np.bool_)
@@ -483,7 +493,7 @@ class Spacepartition:
         del history
     
         fmin, fmini = fs[:,0].min(), fs[:,0].argmin()
-        self.childless = np.array([hyperrectangle(xs[i], *fs[i,:], exs[i], hls[i]) for i in range(lxs)])
+        self.childless = np.array([hyperrectangle(xs[i], *fs[i,:], hls[i], exs[i]) for i in range(lxs)])
         
         if fmin < pmin:
             self.elite = self.childless[fmini]
@@ -491,7 +501,7 @@ class Spacepartition:
         else: 
             fps, exps, xps = parents[:,:3], parents[:,3:3+self.nextras:], parents[:,3+self.nextras:]
             xps, hlps = _reconstruct_from_centre(np.atleast_2d(xps[pminidx, :]), self.bounds)
-            self.elite = hyperrectangle(xps[0,:], *fps[pminidx,:], exps[pminidx,:], hlps.flatten())
+            self.elite = hyperrectangle(xps[0,:], *fps[pminidx,:], hlps.flatten(), exps[pminidx,:])
             del fps, xps, hlps, parents
     
         if self.disp:
@@ -502,10 +512,6 @@ class Spacepartition:
         self.nrotate, i = 0, 0
         self.i = f'Polishing {i}'
         self.max_pop = np.inf
-        self.max_dims = 1
-        self.max_rot = self.ndim // self.max_dims + min(1, self.ndim % self.max_dims)
-        self.dims = np.array([0], np.int64)
-        self.nrotate = 0
         
         for file in ('polished', 'pol-child'):
             self._printout(np.array([]), file, 'w')
@@ -519,30 +525,31 @@ class Spacepartition:
         self.edge_resolved = np.array([], dtype=hyperrectangle) 
         self.ll_resolved = np.array([], dtype=hyperrectangle) 
         
-        while len(self.childless) > 0:
+        self.edge_noptimal = np.array([], dtype=hyperrectangle) 
+        self.ll_noptimal = np.array([], dtype=hyperrectangle) 
+        
+        while (len(self.childless)>0 
+               and self.nrotate < self.max_rot):
             it_start = dt.datetime.now()
             
             noptimal_mask = self._get_noptimal()
             self.new_noptimal = self.childless[noptimal_mask]
             self.childless = self.childless[~noptimal_mask]
             
-            self.edge_noptimal = np.array([], dtype=hyperrectangle) 
-            self.ll_noptimal = np.array([], dtype=hyperrectangle) 
-            
             self._sort_noptimal()
+            
             self.parents = np.concatenate((self.edge_noptimal, self.ll_noptimal, self.childless[self._get_polishing_neighbours()]))
             self.np = len(self.parents)
             
             self.new_hrects = np.array([hrect for parent in 
-                                        tqdm(self.parents, desc=f'{self.i} - #hrects: {len(self.parents)}. Evaluating Rectangles', leave=False)
+                                        tqdm(self.parents, desc=f'{self.i} - #hrects: {self.np}. Evaluating Rectangles', leave=False)
                                         for hrect in _divide_polish(self.func, parent, self.dims, self.f_args, self.nextras)])
-            self.new_hrects = np.concatenate((self.new_hrects, 
+            self.childless = np.concatenate((self.new_hrects, 
                                               np.array([_adjust_polish_parent(parent, self.dims) for parent in self.parents])))
-            self._update_elite()
             
-            resolved_mask = semibarren_speedup(list(self.new_hrects), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
-            self.new_resolved = self.new_hrects[resolved_mask]
-            self.childless = self.new_hrects[~resolved_mask]
+            resolved_mask = semibarren_speedup(list(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
+            self.new_resolved = self.childless[resolved_mask]
+            self.childless = self.childless[~resolved_mask]
             
             self._printout(self.childless, 'pol-child', mode='w')
             self._printout(self.new_resolved, 'polished', mode='a')
@@ -554,6 +561,10 @@ class Spacepartition:
             i+=1
             self.i = f'Polishing {i}'
             self._rotate_axes()
+            if (self.ub-self.lb)[self.dims].sum()==0:
+                self._rotate_axes()
+        #Don't want to change noptimal threshold during polishing 
+        self._update_elite()
                 
         print('Completed.')
         
@@ -580,7 +591,7 @@ def _divide_vec(func, hrect, dims, f_args, min_half_length, nextras):
     f_values = func(centres.T, *f_args)
         
     hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, np.array([], np.float64), hls[k]) 
+        centres[k], f_values[k], gen, cuts, hls[k]) 
         for k in range(n_new)]
 
     return hrects
@@ -593,7 +604,7 @@ def _divide_vec_extra(func, hrect, dims, f_args, min_half_length, nextras, lb, u
     f_values, extras = f_values[:,0], f_values[:,1:]
         
     hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, extras[k], hls[k]) 
+        centres[k], f_values[k], gen, cuts, hls[k], extras[k]) 
         for k in range(n_new)]
 
     return hrects
@@ -607,7 +618,7 @@ def _divide_mp(func, hrect, dims, f_args, min_half_length, nextras):
         f_values[i] = func(centres[i,:], *f_args)
     
     hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, np.array([], np.float64), hls) 
+        centres[k], f_values[k], gen, cuts, hls) 
         for k in range(n_new)]
     return hrects
 
@@ -621,7 +632,7 @@ def _divide_mp_extra(func, hrect, dims, f_args, min_half_length, nextras):
     f_values, extras = f_values[:,0], f_values[:, 1:]
     
     hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, extras[k], hls) 
+        centres[k], f_values[k], gen, cuts, hls, extras[k]) 
         for k in range(n_new)]
     return hrects
 
@@ -639,7 +650,7 @@ def _divide_polish(func, hrect, dims, f_args, nextras):
     f_values, extras = f_values[:,0], f_values[:, 1:]
     
     hrects = [hyperrectangle(
-        centres[k], f_values[k], -1, -1, extras[k], hls) 
+        centres[k], f_values[k], -1, -1, hls, extras[k]) 
         for k in range(n_new)]
     
     return hrects
@@ -654,7 +665,8 @@ def _adjust_polish_parent(hrect, dims):
 @njit(parallel=True)
 def _reconstruct_from_centre(centres, bounds, maxres=2**31):
     lb, ub = bounds
-    centres = normalise(centres, lb, ub)   
+    bmask = (ub-lb)>0
+    centres[:, bmask] = normalise(centres, lb, ub)[:, bmask]
     incs = np.round((centres*maxres)).astype(np.uint64)
     incs1 = np.empty_like(incs)
     for i in prange(len(centres)):
@@ -682,10 +694,13 @@ def semibarren_speedup(rects, dims, min_half_length):
     return accepted
 
 @njit(parallel=True)
-def _borderheuristic(rects, best):
+def _borderheuristic(rects, best, ignoredim=np.array([False])):
     """Returns boolean array like rects where Trues are definitely non-adjacent to a rectangle in best. 
     Determined by having more than 1 dimension with upper bound less than minimal lower bound of best or 
     lower bound greater than maximal upper bound of best"""
+    if (ignoredim == np.array([False])).all():
+        ignoredim = np.zeros(len(rects[0].centre), np.bool_) 
+
     minlb =  np.inf*np.ones(len(best[0].centre), dtype=np.float64)
     maxub = -np.inf*np.ones(len(best[0].centre), dtype=np.float64)
     
@@ -695,8 +710,8 @@ def _borderheuristic(rects, best):
     
     rejected = np.empty(len(rects), dtype=np.bool_)
     for i in prange(len(rects)):
-        rejected[i] = ((rects[i].centre-rects[i].half_length >= maxub).sum() + 
-                       (rects[i].centre+rects[i].half_length <= minlb).sum() > 1)
+        rejected[i] = ((rects[i].centre-rects[i].half_length >= maxub)[~ignoredim].sum() + 
+                       (rects[i].centre+rects[i].half_length <= minlb)[~ignoredim].sum() > 1)
 
     return rejected
 
@@ -713,7 +728,7 @@ def find_neighbours(eligible, members):
 
 @njit 
 def _sub_landlocked_bysum(h, members, bounds):
-    """ Returns True if h is landlocked by pool """
+    """ Returns True if h is landlocked by members """
     """ Assumes h is of the smallest resolution in archive """
     faces = len(h.centre)*2 - (h.centre-h.half_length == bounds[0]).sum() - (h.centre+h.half_length == bounds[1]).sum()
     for h2 in members:
@@ -732,7 +747,7 @@ def landlocked_bysum(eligible, members, bounds):
 
 @njit 
 def _sub_landlocked_bycontra(h, nonmembers):
-    """ Returns True if h is landlocked by pool """
+    """ Returns True if h is landlocked by members """
     for h2 in nonmembers: 
         if hrects_border(h, h2):
             return False
@@ -788,7 +803,7 @@ def hrects_border(h1, h2, tol = 1e-10):
     
     # adjacent (ub=lb or lb=ub) (higher OR lower) in exactly one dimension
     adjacency = ((np.abs(ub2 - lb1) < tol) +
-                 (np.abs(lb2 - ub1) < tol)) 
+                 (np.abs(lb2 - ub1) < tol)) * ~(np.abs(h1.centre-h2.centre) < tol)
     if adjacency.sum() != 1:
         return False
     
