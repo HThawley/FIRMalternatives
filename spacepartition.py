@@ -572,7 +572,7 @@ class Spacepartition:
 @njit
 def _common_divide(hrect, dims, min_half_length):
     # pre-processing common to all _divide_... functions
-    dims = dims[(hrect.half_length >= min_half_length)[dims]] 
+    dims = dims[(hrect.half_length > min_half_length)[dims]] 
 
     l_dim = len(dims)
     n_new = 2**l_dim
@@ -629,6 +629,30 @@ def _divide_mp_extra(func, hrect, dims, f_args, min_half_length, nextras):
     f_values = np.empty((n_new, nextras+1), dtype=np.float64)
     for i in prange(n_new):
         f_values[i] = func(centres[i,:], *f_args)
+
+    #catch empty values not evaluated 
+    #cause of bug unknown, possibly to do with n_new?
+    if f_values[:,0].min() < 70: 
+        mask = np.where(f_values[:,0] < 1e-6)[0]
+        for i in prange(len(mask)):
+            f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
+        if f_values[:,0].min() < 70: 
+            raise Exception(f"centre: {hrect.centre}, dims: {dims}, n_new: {n_new}")
+
+    if np.isnan(f_values[:,0]).any(): 
+        mask = np.where(np.isnan(f_values[:,0]))[0]
+        for i in prange(len(mask)):
+            f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
+        if np.isnan(f_values[:,0]).any(): 
+            raise Exception(f"centre: {hrect.centre}, dims: {dims}, n_new: {n_new}")
+
+    if (f_values<0).any(): 
+        mask = np.where((f_values<0).sum(axis=1))[0]
+        for i in prange(len(mask)):
+            f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
+        if (f_values<0).any(): 
+            raise Exception(f"centre: {hrect.centre}, dims: {dims}, n_new: {n_new}")
+
     f_values, extras = f_values[:,0], f_values[:, 1:]
     
     hrects = [hyperrectangle(
@@ -683,7 +707,7 @@ def _reconstruct_from_centre(centres, bounds, maxres=2**31):
 @njit
 def hrect_semibarren(h, dims, min_half_length):
     """Returns True if {h} is at maximum resolution along {dims} axes """
-    return (h.half_length <= min_half_length)[dims].all()
+    return (h.half_length < min_half_length)[dims].all()
 
 @njit(parallel=True)
 def semibarren_speedup(rects, dims, min_half_length):
