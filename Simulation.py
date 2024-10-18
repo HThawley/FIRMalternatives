@@ -12,25 +12,21 @@ def Reliability(solution, flexible):
 
     Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
                solution.GBaseload.sum(axis=1) - flexible)
-    intervals = solution.intervals
 
     Pcapacity = solution.CPHP.sum() * 1000 # S-CPHP(j), GW to MW
     Scapacity = solution.CPHS * 1000 # S-CPHS(j), GWh to MWh
-    efficiency, resolution = solution.efficiency, solution.resolution 
 
-    solution.Discharge = np.zeros(intervals)
-    solution.Charge = np.zeros(intervals)
-    solution.Storage = np.zeros(intervals)
-    
-    solution.Storage[-1] =  0.5*Scapacity
-    for t in range(intervals):
-        solution.Discharge[t] = np.minimum(np.minimum(np.maximum(0, Netload[t]), Pcapacity), solution.Storage[t-1] / resolution)
-        solution.Charge[t] = np.minimum(np.minimum(-1 * np.minimum(0, Netload[t]), Pcapacity), (Scapacity - solution.Storage[t-1]) / efficiency / resolution)
-        solution.Storage[t] = solution.Storage[t-1] - solution.Discharge[t] * resolution + solution.Charge[t] * resolution * efficiency
+    solution.Discharge = np.zeros(solution.intervals)
+    solution.Charge = np.zeros(solution.intervals)
+    solution.Storage = np.zeros(solution.intervals)
+    solution.Storage[-1] = 0.5*Scapacity
+    for t in range(solution.intervals):
+        solution.Discharge[t] = np.minimum(np.minimum(np.maximum(0, Netload[t]), Pcapacity), solution.Storage[t-1] / solution.resolution)
+        solution.Charge[t] = np.minimum(np.minimum(-1 * np.minimum(0, Netload[t]), Pcapacity), (Scapacity - solution.Storage[t-1]) / solution.efficiency / solution.resolution)
+        solution.Storage[t] = solution.Storage[t-1] - solution.Discharge[t] * solution.resolution + solution.Charge[t] * solution.resolution * solution.efficiency
 
     solution.Deficit = np.maximum(Netload - solution.Discharge, 0)
     solution.Spillage = -1 * np.minimum(Netload + solution.Charge, 0)
-
     solution.flexible = flexible
 
     return solution.Deficit
