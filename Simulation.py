@@ -8,8 +8,6 @@ from numba import njit
 
 @njit()
 def Reliability(solution, flexible):
-    """Single-solution version of Reliability"""
-
     Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
                solution.GBaseload.sum(axis=1) - flexible)
 
@@ -26,8 +24,7 @@ def Reliability(solution, flexible):
         solution.Storage[t] = solution.Storage[t-1] - solution.Discharge[t] * solution.resolution + solution.Charge[t] * solution.resolution * solution.efficiency
 
     solution.Deficit = np.maximum(Netload - solution.Discharge, 0)
-    solution.Spillage = -1 * np.minimum(Netload + solution.Charge, 0)
+    solution.Spillage = - np.minimum(Netload + solution.Charge, 0)
     solution.flexible = flexible
-
+    
     return solution.Deficit
-

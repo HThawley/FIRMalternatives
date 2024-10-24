@@ -15,12 +15,10 @@ def Fill(solution):
     
     fill = 0
     for t in range(intervals-1, -1, -1):
-        d = deficit[t]
-        if d > 0:
-            flex = min(d, flex_cap)
-            flexible[t] = flex
+        if deficit[t] > 0:
+            flexible[t] = min(deficit[t], flex_cap)
     
-            fill += (d-flex)/efficiency
+            fill += (deficit[t]-flexible[t])/efficiency
 
         if fill > 0:
             flex = min(fill, flex_cap - flexible[t])
