@@ -15,7 +15,7 @@ def Debug(solution):
     """Debugging"""
 
     Load, PV, Wind = (solution.MLoad.sum(axis=1), solution.GPV.sum(axis=1), solution.GWind.sum(axis=1))
-    Baseload, Peak = (solution.MBaseload.sum(axis=1), solution.MPeak.sum(axis=1))
+    Baseload, Peak = (solution.GBaseload.sum(axis=1), solution.MPeak.sum(axis=1))
 
     Discharge, Charge, Storage = (solution.Discharge, solution.Charge, solution.Storage)
     Deficit, Spillage = (solution.Deficit, solution.Spillage)
@@ -172,7 +172,7 @@ def Information(x, flexible):
         pass
 
     if scenario>=21:
-        S.TDC = Transmission(S, output=True) # TDC(t, k), MW
+        S.TDC = Transmission(S) # TDC(t, k), MW
     else:
         S.TDC = np.zeros((intervals, len(DCloss))) # TDC(t, k), MW
 
@@ -188,13 +188,13 @@ def Information(x, flexible):
         S.MStorage = np.tile(S.Storage, (nodes, 1)).transpose()
         S.MSpillage = np.tile(S.Spillage, (nodes, 1)).transpose()
 
-    S.CDC = np.amax(abs(S.TDC), axis=0) * pow(10, -3) # CDC(k), MW to GW
+    S.CDC = np.amax(np.abs(S.TDC), axis=0) * pow(10, -3) # CDC(k), MW to GW
     S.FQ, S.NQ, S.NS, S.NV, S.AS, S.SW, S.TV = map(lambda k: S.TDC[:, k], range(S.TDC.shape[1]))
 
     S.MHydro = np.tile(CHydro - CBaseload, (intervals, 1)) * pow(10, 3) # GW to MW
     S.MHydro = np.minimum(S.MHydro, S.MPeak)
     S.MBio = S.MPeak - S.MHydro
-    S.MHydro += S.MBaseload
+    S.MHydro += S.GBaseload
 
     S.Topology = np.array([-1 * S.FQ, -1 * (S.NQ + S.NS + S.NV), -1 * S.AS, S.FQ + S.NQ, S.NS + S.AS - S.SW, -1 * S.TV, S.NV + S.TV, S.SW])
 

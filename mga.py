@@ -96,3 +96,6 @@ if __name__ == '__main__':
     print("Optimisation took", endtime - starttime)
 
     print(result.x, result.f)
+
+    from Fill import Analysis
+    Analysis(result.x)

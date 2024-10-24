@@ -121,15 +121,13 @@ from Network import Transmission
 @njit()
 def F(S):
     
-    Deficit = Reliability(S, flexible=np.zeros((intervals, ) , dtype=np.float64)) # Sj-EDE(t, j), MW
-    Flexible = Deficit.sum(axis=0) * resolution / years / efficiency # MWh p.a.
-    Hydro = Flexible + GBaseload.sum() * resolution / years # Hydropower & biomass: MWh p.a.
-    PenHydro = np.maximum(0, Hydro - 20_000_000) # TWh p.a. to MWh p.a.
+    Hydro = (Reliability(S, flexible=np.zeros(intervals , dtype=np.float64)).sum(axis=0) / efficiency  
+             + GBaseload.sum()) * resolution / years
+    PenHydro = np.maximum(0, Hydro - 20_000_000) 
 
-    Deficit = Reliability(S, flexible=np.ones((intervals, ), dtype=np.float64)*CPeak.sum()*1000) # Sj-EDE(t, j), GW to MW
-    PenDeficit = np.maximum(0, Deficit.sum(axis=0) * resolution) # MWh
+    PenDeficit = np.maximum(0, Reliability(S, flexible=np.ones((intervals, ), dtype=np.float64)*CPeak.sum()*1000).sum() * resolution) 
 
-    TDC_abs = np.abs(Transmission(S)) if scenario>=21 else np.zeros((intervals, len(DCloss)), dtype=np.float64)  # TDC: TDC(t, k), MW
+    TDC_abs = np.abs(Transmission(S)) if scenario>=21 else np.zeros((intervals, len(DCloss)), dtype=np.float64)
 
     CDC = np.zeros(len(DCloss), dtype=np.float64)
     for j in prange(len(DCloss)):
@@ -143,8 +141,7 @@ def F(S):
                               [S.CPV.sum(), S.CWind.sum(), Hydro * 0.000_001, _c, _c])
             )
 
-    loss = TDC_abs.sum(axis=0) * DCloss
-    loss = loss.sum(axis=0) * 0.000_000_001 * resolution / years # PWh p.a.
+    loss = (TDC_abs.sum(axis=0) * DCloss).sum(axis=0) * 0.000_000_001 * resolution / years # PWh p.a.
     energyloss = np.abs(energy - loss)
     LCOE = cost.sum() / energyloss
     LCOG = 1000 * cost[np.array([0, 1, 13])].sum() / (
@@ -191,7 +188,6 @@ solution_spec = [
     ('evaluated', boolean),
     ('MPV', float64[:, :]),
     ('MWind', float64[:, :]),
-    ('MBaseload', float64[:, :]),
     ('MPeak', float64[:, :]),
     ('MDischarge', float64[:, :]),
     ('MCharge', float64[:, :]),
@@ -243,11 +239,8 @@ class Solution:
         self.CPeak = CPeak
         self.CHydro = CHydro
         
-        self.evaluated=False
-        
     def _evaluate(self):
         self.LCOE, self.Penalties, self.LCOG, self.LCOBS, self.LCOBT, self.LCOBL = F(self)
-        self.evaluated=True
 
     # def __repr__(self):
     #     """S = Solution(list(np.ones(64))) >> print(S)"""
@@ -261,7 +254,7 @@ if __name__=='__main__':
     print(solution.LCOE, solution.LCOG, solution.LCOBS, solution.LCOBT, solution.LCOBL)
 
     
-    def test(printout=True):
+    def test(printout=False):
         x = np.random.rand(len(lb))*(ub-lb)+lb
         solution = Solution(x)#/1.25) 
         solution._evaluate()
