@@ -718,12 +718,14 @@ def semibarren_speedup(rects, dims, min_half_length):
     return accepted
 
 @njit(parallel=True)
-def _borderheuristic(rects, best, ignoredim=np.array([False])):
+def _borderheuristic(rects, best, ignoredim=None):
     """Returns boolean array like rects where Trues are definitely non-adjacent to a rectangle in best. 
     Determined by having more than 1 dimension with upper bound less than minimal lower bound of best or 
     lower bound greater than maximal upper bound of best"""
-    if (ignoredim == np.array([False])).all():
-        ignoredim = np.zeros(len(rects[0].centre), np.bool_) 
+    if ignoredim is None: #new variable name prevents static-typing issues
+        ign_dim = np.zeros(len(rects[0].centre), np.bool_) 
+    else:
+        ign_dim = ignoredim 
 
     minlb =  np.inf*np.ones(len(best[0].centre), dtype=np.float64)
     maxub = -np.inf*np.ones(len(best[0].centre), dtype=np.float64)
@@ -734,9 +736,8 @@ def _borderheuristic(rects, best, ignoredim=np.array([False])):
     
     rejected = np.empty(len(rects), dtype=np.bool_)
     for i in prange(len(rects)):
-        rejected[i] = ((rects[i].centre-rects[i].half_length >= maxub)[~ignoredim].sum() + 
-                       (rects[i].centre+rects[i].half_length <= minlb)[~ignoredim].sum() > 1)
-
+        rejected[i] = ((rects[i].centre-rects[i].half_length >= maxub)[~ign_dim].sum() + 
+                       (rects[i].centre+rects[i].half_length <= minlb)[~ign_dim].sum() > 1)
     return rejected
 
 @njit(parallel=True)

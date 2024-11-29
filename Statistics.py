@@ -7,6 +7,7 @@
 from Input import *
 from Simulation import Reliability
 from Network import Transmission
+from Fill import Fill
 
 import numpy as np
 import datetime as dt
@@ -35,15 +36,15 @@ def Debug(solution):
             assert abs(Storage[i] - Storage[i - 1] + Discharge[i] * resolution - Charge[i] * resolution * efficiency) <= 1
 
         # Capacity: PV, wind, Discharge, Charge and Storage
-        try:
-            assert np.amax(PV) <= sum(solution.CPV) * pow(10, 3), print(np.amax(PV) - sum(solution.CPV) * pow(10, 3))
-            assert np.amax(Wind) <= sum(solution.CWind) * pow(10, 3), print(np.amax(Wind) - sum(solution.CWind) * pow(10, 3))
+    try:
+        assert np.amax(PV) <= sum(solution.CPV) * pow(10, 3), print(np.amax(PV) - sum(solution.CPV) * pow(10, 3))
+        assert np.amax(Wind) <= sum(solution.CWind) * pow(10, 3), print(np.amax(Wind) - sum(solution.CWind) * pow(10, 3))
 
-            assert np.amax(Discharge) <= sum(solution.CPHP) * pow(10, 3), print(np.amax(Discharge) - sum(solution.CPHP) * pow(10, 3))
-            assert np.amax(Charge) <= sum(solution.CPHP) * pow(10, 3), print(np.amax(Charge) - sum(solution.CPHP) * pow(10, 3))
-            assert np.amax(Storage) <= solution.CPHS * pow(10, 3), print(np.amax(Storage) - solution.CPHS * pow(10, 3))
-        except AssertionError:
-            pass
+        assert np.amax(Discharge) <= sum(solution.CPHP) * pow(10, 3), print(np.amax(Discharge) - sum(solution.CPHP) * pow(10, 3))
+        assert np.amax(Charge) <= sum(solution.CPHP) * pow(10, 3), print(np.amax(Charge) - sum(solution.CPHP) * pow(10, 3))
+        assert np.amax(Storage) <= solution.CPHS * pow(10, 3), print(np.amax(Storage) - solution.CPHS * pow(10, 3))
+    except AssertionError:
+        pass
 
     print('Debugging: everything is ok')
 
@@ -69,7 +70,7 @@ def LPGM(solution):
 
     np.savetxt('Results/S{}.csv'.format(scenario), C, fmt='%s', delimiter=',', header=header, comments='')
 
-    if scenario>=21:
+    if int(scenario)>=21:
         header = 'Date & time,Operational demand,Hydropower,Biomass,Solar photovoltaics,Wind,' \
                  'Pumped hydro energy storage,Energy deficit,Energy spillage,' \
                  'Transmission,PHES-Charge,PHES-Storage'
@@ -109,12 +110,12 @@ def GGTA(solution):
     CostHydro = factor['Hydro'] * GHydro # A$b p.a.
     CostBio = factor['Hydro'] * GBio # A$b p.a.
     CostPH = factor['PHP'] * CPHP + factor['PHS'] * CPHS # A$b p.a.
-    if scenario>=21:
+    if int(scenario)>=21:
         CostPH -= factor['LegPH']
 
     CostDC = np.array([factor['FQ'], factor['NQ'], factor['NS'], factor['NV'], factor['AS'], factor['SW'], factor['TV']])
     CostDC = (CostDC * solution.CDC).sum() # A$b p.a.
-    if scenario>=21:
+    if int(scenario)>=21:
         CostDC -= factor['LegINTC']
 
     CostAC = factor['ACPV'] * CPV + factor['ACWind'] * CWind # A$b p.a.
@@ -152,7 +153,8 @@ def GGTA(solution):
               + list(solution.CDC) \
               + [LCOE, LCOG, LCOBS, LCOBT, LCOBL]
 
-    np.savetxt('Results/GGTA{}.csv'.format(scenario), D, fmt='%f', delimiter=',')
+    np.savetxt('Results/GGTA{}.csv'.format(scenario), D, fmt='%f', delimiter=',')#, header=[
+        # 'Energy (TWh p.a.)', 'Transmission Losses (TWh p.a.)', 'PV (GW)', 'PV (TWh p.a.)' ])
     print('Energy generation, storage and transmission information is produced.')
 
     return True
@@ -171,7 +173,9 @@ def Information(x, flexible):
     except AssertionError:
         pass
 
-    if scenario>=21:
+    if int(scenario)>=21:
+        
+        
         S.TDC = Transmission(S) # TDC(t, k), MW
     else:
         S.TDC = np.zeros((intervals, len(DCloss))) # TDC(t, k), MW
@@ -206,24 +210,25 @@ def Information(x, flexible):
 
     return True
 
+class Scenario:
+    def __init__(self, scen):
+        self.scen=scen
+    def __str__(self):
+        return str(self.scen)
+    def __repr__(self):
+        return str(self.scen)
+    def __int__(self):
+        return int(self.scen[-2:])
+
 if __name__ == '__main__':
     capacities = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',')
-    flexible = np.ones((intervals, ), dtype=np.float64)*CPeak.sum()*1000
+    # scenario =Scenario('HighDist31')
+    # capacities = np.genfromtxt('Results/{}.csv'.format(scenario), delimiter=',')
     
-    # flexible = np.genfromtxt('Results/Dispatch_Flexible{}.csv'.format(scenario), delimiter=',', skip_header=1)
-    # capacities=np.array([0.78125,0.78125,0.78125,0.78125,0.78125,2.34375,0.78125,
-    #                      0.78125,2.34375,0.78125,2.34375,0.78125,2.34375,2.34375,
-    #                      2.34375,0.78125,0.78125,0.78125,1.5625,1.5625,1.5625,1.5625,
-    #                      1.5625,4.6875,1.5625,4.6875,1.5625,1.5625,1.5625,1.5625,1.5625,
-    #                      1.5625,1.5625,1.5625,1.5625,1.5625,1.5625,1.5625,4.6875,1.5625,
-    #                      1.5625,1.5625,4.999287150973348,3.9837339973767265,
-    #                      2.3005982340601734,1.9956554787796343,6.920525089860547,218.75])
     S=Solution(capacities)
-    Reliability(S, flexible)
-    flexible=np.maximum(0, S.flexible-S.Spillage)
+    Flex = Fill(S)
     
-    # Information(capacities, flexible)
-    Information(capacities, np.zeros(intervals))
+    Information(capacities, Flex)
     
     
     

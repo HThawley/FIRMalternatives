@@ -37,8 +37,7 @@ def f(args):
 
 def hyper_wrapper(centre, half_length):
     """simple wrapper for creating hyperrectangle """
-    return hyperrectangle(centre.astype(np.float64), f(centre), 0, 0, np.array([]), half_length.astype(np.float64))
-    
+    return hyperrectangle(centre.astype(np.float64), f(centre), 0, 0, half_length.astype(np.float64), np.array([]))
     
 class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
     
@@ -216,35 +215,37 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         
     def test_hrectsemibarren(self):
         h = self.hrects2d[0]
-        self.assertTrue(hrect_semibarren(h, np.array([True, True]), np.array([25., 25.])))
-        self.assertTrue(hrect_semibarren(h, np.array([True, False]), np.array([25., 25.])))
-        self.assertTrue(hrect_semibarren(h, np.array([0,1]), np.array([25., 25.])))
+        self.assertTrue(hrect_semibarren(h, np.array([True, True]), np.array([25.1, 25.1])))
+        self.assertFalse(hrect_semibarren(h, np.array([True, True]), np.array([25., 25.])))
         
-        #dims needs to be a valid slicer
+        self.assertTrue(hrect_semibarren(h, np.array([True, False]), np.array([25.1, 25.1])))
+        self.assertTrue(hrect_semibarren(h, np.array([0,1]), np.array([25.1, 25.1])))
+        
+        # dims needs to be a valid slicer
         self.assertRaises(Exception, hrect_semibarren, h, [0, 1], np.array([25., 25.]))
         self.assertRaises(Exception, hrect_semibarren, h, [True, False], np.array([25., 25.]))
-        #min_half_length needs to be broadcastable
+        # min_half_length needs to be broadcastable
         self.assertRaises(Exception, hrect_semibarren, h, np.array([True, True]), np.array([25., 25., 25.]))
         self.assertNotRaises(Exception, hrect_semibarren, h, np.array([True, True]), 25.)
-        #min_half_length should not be slived by dims
+        # min_half_length should not be sliced by dims
         self.assertRaises(   Exception, hrect_semibarren, self.hrects3d_2[0], np.array([True, True, False]), np.array([25., 25.]))
         self.assertNotRaises(Exception, hrect_semibarren, self.hrects3d_2[0], np.array([True, True, False]), np.array([25., 25., 25.]))
         
-        self.assertFalse(hrect_semibarren(self.hrects3d_2[0], np.ones(3, bool), np.array([25., 50., 25.])))
-        self.assertFalse(hrect_semibarren(self.hrects3d_2[1], np.ones(3, bool), np.array([25., 50., 25.])))
-        self.assertTrue(hrect_semibarren(self.hrects3d_2[2], np.ones(3, bool), np.array([25., 50., 25.])))
-        self.assertTrue(hrect_semibarren(self.hrects3d_2[3], np.ones(3, bool), np.array([25., 50., 25.])))
+        self.assertFalse(hrect_semibarren(self.hrects3d_2[0], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertFalse(hrect_semibarren(self.hrects3d_2[1], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertTrue(hrect_semibarren(self.hrects3d_2[2], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertTrue(hrect_semibarren(self.hrects3d_2[3], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
         
         self.assertArrayEqual(
-            semibarren_speedup(list(self.hrects3d_2), np.ones(3, bool), np.array([25., 50., 25.])),
+            semibarren_speedup(list(self.hrects3d_2), np.ones(3, bool), np.array([25.1, 50.1, 25.1])),
             np.array([False, False, True, True]))
         
         self.assertArrayEqual(
-            semibarren_speedup(list(self.hrects3d_2), np.array([0, 1]), np.array([25., 25., 25.])),
+            semibarren_speedup(list(self.hrects3d_2), np.array([0, 1]), np.array([25.1, 25.1, 25.1])),
             np.array([True, True, False, False]))
         
         self.assertArrayEqual(
-            semibarren_speedup(list(self.hrects3d_2), np.array([1, 2]), np.array([25., 25., 25.])),
+            semibarren_speedup(list(self.hrects3d_2), np.array([1, 2]), np.array([25.1, 25.1, 25.1])),
             np.array([False, False, False, False]))
         
     
