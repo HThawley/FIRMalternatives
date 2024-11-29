@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from numba import njit, prange, float64, int64, uint
 from numba.experimental import jitclass
-from numba import NumbaTypeSafetyWarning, NumbePendingDeprecationWarning
+from numba import NumbaTypeSafetyWarning, NumbaPendingDeprecationWarning
 from numba.typed import List
 import datetime as dt
 from tqdm import tqdm
@@ -21,6 +21,7 @@ import os
 import warnings
 
 warnings.filterwarnings("ignore", category=NumbaTypeSafetyWarning)
+warnings.filterwarnings("ignore", category=NumbaPendingDeprecationWarning)
 
 spec = [
     ('centre', float64[:]),
