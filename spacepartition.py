@@ -7,7 +7,7 @@ Created on Wed Sep 11 05:21:25 2024
 
 import numpy as np 
 import pandas as pd
-from numba import njit, prange, float64, int64, uint
+from numba import njit, prange, float64, int64, int32
 from numba.experimental import jitclass
 from numba.typed import List
 import datetime as dt
@@ -736,8 +736,8 @@ def _borderheuristic(rects, best, ignoredim=None):
     
     rejected = np.empty(len(rects), dtype=np.bool_)
     for i in prange(len(rects)):
-        rejected[i] = ((rects[i].centre-rects[i].half_length >= maxub)[~ign_dim].sum() + 
-                       (rects[i].centre+rects[i].half_length <= minlb)[~ign_dim].sum() > uint(1))
+        rejected[i] = (int32((rects[i].centre-rects[i].half_length >= maxub)[~ign_dim].sum()) + 
+                       int32((rects[i].centre+rects[i].half_length <= minlb)[~ign_dim].sum()) > int32(1))
     return rejected
 
 @njit(parallel=True)
