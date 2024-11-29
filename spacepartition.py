@@ -7,9 +7,10 @@ Created on Wed Sep 11 05:21:25 2024
 
 import numpy as np 
 import pandas as pd
-from numba import njit, prange, float64, int64, int32
+from numba import njit, prange, float64, int64, uint
 from numba.experimental import jitclass
-from numba.typed import List
+from numba import NumbaTypeSafetyWarning
+# from numba.typed import List
 import datetime as dt
 from tqdm import tqdm
 import warnings
@@ -17,7 +18,9 @@ from csv import writer
 from multiprocessing import cpu_count
 import shutil
 import os 
+import warnings
 
+warnings.filterwarnings("ignore", category=NumbaTypeSafetyWarning)
 
 spec = [
     ('centre', float64[:]),
@@ -190,7 +193,7 @@ class Spacepartition:
                                          self.ll_resolved))
         self.new_resolved = np.array([], dtype=hyperrectangle)
         if len(self.childless) > 0:
-            resolved_mask = semibarren_speedup(List(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length) 
+            resolved_mask = semibarren_speedup(tuple(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length) 
             self.new_resolved = self.childless[resolved_mask]
             self.childless = self.childless[~resolved_mask]
             
@@ -295,7 +298,7 @@ class Spacepartition:
                                np.zeros(len(self.childless) - nearoptimalcount, dtype=np.bool_)))
         if best.sum() > 0:
             # only rectangles which can be split on current splitting axes
-            best = ~semibarren_speedup(List(self.childless[best]), self.dims, self.min_half_length)
+            best = ~semibarren_speedup(tuple(self.childless[best]), self.dims, self.min_half_length)
             # append 0s to best to match length of childless array
             best = np.concatenate((best, np.zeros(len(self.childless) -len(best), dtype=np.bool_)))
         return best
@@ -304,11 +307,11 @@ class Spacepartition:
         self.noptimal_resolved = np.array([h.f < self.noptimal_threshold for h in self.edge_resolved])
         if self.noptimal_resolved.sum() > 0 and len(self.childless) > 0:
             # rectangles which cannot be split on the axes are ineligible
-            self.eligible = ~semibarren_speedup(List(self.childless), self.dims, self.min_half_length)
+            self.eligible = ~semibarren_speedup(tuple(self.childless), self.dims, self.min_half_length)
             if self.eligible.sum() > 0:
                 # rectangles failing beyond maximal extent of near-optimal resolved are ineligible
-                self.eligible[self.eligible] = ~_borderheuristic(List(self.childless[self.eligible]), 
-                                                                 List(self.edge_resolved[self.noptimal_resolved]), 
+                self.eligible[self.eligible] = ~_borderheuristic(tuple(self.childless[self.eligible]), 
+                                                                 tuple(self.edge_resolved[self.noptimal_resolved]), 
                                                                  self.lb==self.ub)
             print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
         
@@ -321,11 +324,11 @@ class Spacepartition:
     def _get_polishing_neighbours(self):
         if len(self.edge_noptimal) > 0 and len(self.childless) > 0:
             # rectangles which cannot be split on the axes are ineligible
-            self.eligible = ~semibarren_speedup(List(self.childless), self.dims, self.min_half_length)
+            self.eligible = ~semibarren_speedup(tuple(self.childless), self.dims, self.min_half_length)
             if self.eligible.sum() > 0:
                 # rectangles failing beyond maximal extent of near-optimal resolved are ineligible
-                self.eligible[self.eligible] = ~_borderheuristic(List(self.childless[self.eligible]), 
-                                                                 List(self.edge_noptimal), 
+                self.eligible[self.eligible] = ~_borderheuristic(tuple(self.childless[self.eligible]), 
+                                                                 tuple(self.edge_noptimal), 
                                                                  self.lb==self.ub)
             if self.eligible.sum() > 0:
                 print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
@@ -376,7 +379,7 @@ class Spacepartition:
             self._update_elite()
 
             # identify resolved rectangles 
-            self.resolved_mask = semibarren_speedup(List(self.new_hrects), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
+            self.resolved_mask = semibarren_speedup(tuple(self.new_hrects), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
             
             # sort new into childless and resolved
             self.new_resolved = self.new_hrects[self.resolved_mask]
@@ -389,33 +392,33 @@ class Spacepartition:
         
     def _find_neighbours_parent(self, mask):
         return find_neighbours(
-            List(self.childless[self.eligible * mask]), 
-            List(self.edge_resolved[self.noptimal_resolved])
+            tuple(self.childless[self.eligible * mask]), 
+            tuple(self.edge_resolved[self.noptimal_resolved])
             )
     
     def _find_neighbours_polish(self, mask):
         return find_neighbours(
-            List(self.childless[self.eligible * mask]), 
-            List(self.edge_noptimal)
+            tuple(self.childless[self.eligible * mask]), 
+            tuple(self.edge_noptimal)
             )
     
     def _sort_by_sum(self, mask):
         return landlocked_bysum(
-            List(self.edge_resolved[mask]),
-            List(self.all_resolved),
+            tuple(self.edge_resolved[mask]),
+            tuple(self.all_resolved),
             self.bounds
             )
         
     def _sort_by_contra(self, mask): 
         return landlocked_bycontra(
-            List(self.edge_resolved[mask]),
-            List(self.childless)
+            tuple(self.edge_resolved[mask]),
+            tuple(self.childless)
             )  
         
     def _sort_nop_by_contra(self, mask): 
         return landlocked_bycontra(
-            List(self.edge_noptimal[mask]),
-            List(self.childless)
+            tuple(self.edge_noptimal[mask]),
+            tuple(self.childless)
             )  
         
     def _time_long_func(self, long_func, base_mask, _cmtt = -1, _cctt = -1):
@@ -547,7 +550,7 @@ class Spacepartition:
             self.childless = np.concatenate((self.new_hrects, 
                                               np.array([_adjust_polish_parent(parent, self.dims) for parent in self.parents])))
             
-            resolved_mask = semibarren_speedup(List(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
+            resolved_mask = semibarren_speedup(tuple(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
             self.new_resolved = self.childless[resolved_mask]
             self.childless = self.childless[~resolved_mask]
             
@@ -736,8 +739,8 @@ def _borderheuristic(rects, best, ignoredim=None):
     
     rejected = np.empty(len(rects), dtype=np.bool_)
     for i in prange(len(rects)):
-        rejected[i] = (int32((rects[i].centre-rects[i].half_length >= maxub)[~ign_dim].sum()) + 
-                       int32((rects[i].centre+rects[i].half_length <= minlb)[~ign_dim].sum()) > int32(1))
+        rejected[i] = ((rects[i].centre-rects[i].half_length >= maxub)[~ign_dim].sum() + 
+                       (rects[i].centre+rects[i].half_length <= minlb)[~ign_dim].sum() > 1)
     return rejected
 
 @njit(parallel=True)
