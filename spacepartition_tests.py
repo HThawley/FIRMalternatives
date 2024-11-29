@@ -6,7 +6,7 @@
 import unittest
 import numpy as np
 from numba import njit 
-# from numba.typed import List
+from numba.typed import List
 from scipy.linalg import pascal
 
 from spacepartition import *
@@ -195,22 +195,22 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         self._test_hrectborders(self.hrects3d_3, self.conns3d_3)
     
     def test_findneighbours(self):
-        self.assertTrue(find_neighbours(tuple(self.hrects3d_2), tuple(self.hrects3d_2)).all())
+        self.assertTrue(find_neighbours(List(self.hrects3d_2), List(self.hrects3d_2)).all())
         
         for i, row in enumerate(self.conns3d_3):
-            self.assertArraySetEqual(np.where(find_neighbours(tuple(self.hrects3d_3), [self.hrects3d_3[i]]))[0], row)
+            self.assertArraySetEqual(np.where(find_neighbours(List(self.hrects3d_3), [self.hrects3d_3[i]]))[0], row)
         
         for i, j in enumerate(range(2, 12)):
             result, slicer = np.zeros(12, bool), np.zeros(12, bool)
             slicer[i:j] = True
-            result[~slicer] = find_neighbours(tuple(self.hrects3d_3[~slicer]), tuple(self.hrects3d_3[slicer]))
+            result[~slicer] = find_neighbours(List(self.hrects3d_3[~slicer]), List(self.hrects3d_3[slicer]))
             self.assertArraySetEqual(np.where(result)[0], 
                                      set(self.conns3d_3[slicer].flatten()) - set(np.where(slicer)[0]), msg=f'i={i}, j={j}')                    
             
         for i, j in enumerate(range(3, 12)):
             result, slicer = np.zeros(12, bool), np.zeros(12, bool)
             slicer[i:j] = True
-            result[~slicer] = find_neighbours(tuple(self.hrects3d_3[~slicer]), tuple(self.hrects3d_3[slicer]))
+            result[~slicer] = find_neighbours(List(self.hrects3d_3[~slicer]), List(self.hrects3d_3[slicer]))
             self.assertArraySetEqual(np.where(result)[0], 
                                      set(self.conns3d_3[slicer].flatten()) - set(np.where(slicer)[0]), msg=f'i={i}, j={j}')    
         
@@ -238,15 +238,15 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         self.assertTrue(hrect_semibarren(self.hrects3d_2[3], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
         
         self.assertArrayEqual(
-            semibarren_speedup(tuple(self.hrects3d_2), np.ones(3, bool), np.array([25.1, 50.1, 25.1])),
+            semibarren_speedup(List(self.hrects3d_2), np.ones(3, bool), np.array([25.1, 50.1, 25.1])),
             np.array([False, False, True, True]))
         
         self.assertArrayEqual(
-            semibarren_speedup(tuple(self.hrects3d_2), np.array([0, 1]), np.array([25.1, 25.1, 25.1])),
+            semibarren_speedup(List(self.hrects3d_2), np.array([0, 1]), np.array([25.1, 25.1, 25.1])),
             np.array([True, True, False, False]))
         
         self.assertArrayEqual(
-            semibarren_speedup(tuple(self.hrects3d_2), np.array([1, 2]), np.array([25.1, 25.1, 25.1])),
+            semibarren_speedup(List(self.hrects3d_2), np.array([1, 2]), np.array([25.1, 25.1, 25.1])),
             np.array([False, False, False, False]))
         
     
@@ -285,26 +285,26 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         # hrects in hrects2d 
         eligible = np.arange(3)
         # when all rectangles are members, all eligible hrects are landlocked
-        self.assertTrue(landlocked_bysum(tuple(self.hrects2d[eligible]), tuple(self.hrects2d), bounds).all())
+        self.assertTrue(landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d), bounds).all())
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bysum(tuple(self.hrects2d[eligible]), tuple(self.hrects2d[eligible]), bounds), 
+        self.assertArrayEqual(landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d[eligible]), bounds), 
                               np.array([True, False, False]))
         
         # hrects in hrects3d_4 which are children of hrects3d_1[0]
         eligible8 = np.arange(8)
         # when all rectangles are members, all eligible hrects are landlocked
-        self.assertTrue(landlocked_bysum(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4), bounds).all())
+        self.assertTrue(landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4), bounds).all())
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bysum(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[eligible8]), bounds), 
+        self.assertArrayEqual(landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible8]), bounds), 
                               np.array([True, False, False, False, False, False, False, False]))
         
         #hrects in hrects3d_4 which are childen of hrects3d_1[0, 1] 
         eligible16 = np.arange(16) 
-        self.assertTrue(landlocked_bysum(tuple(self.hrects3d_4[eligible16]), tuple(self.hrects3d_4), bounds).all())
-        self.assertArrayEqual(landlocked_bysum(tuple(self.hrects3d_4[eligible16]), tuple(self.hrects3d_4[eligible16]), bounds), 
+        self.assertTrue(landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4), bounds).all())
+        self.assertArrayEqual(landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[eligible16]), bounds), 
                               np.array([True, True, False, False, False, False, False, False, 
                                         True, True, False, False, False, False, False, False]))
-        self.assertArrayEqual(landlocked_bysum(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[eligible16]), bounds), 
+        self.assertArrayEqual(landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible16]), bounds), 
                               np.array([True, True, False, False, False, False, False, False]))
 
     def test_landlockedbycontra(self):
@@ -312,24 +312,24 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         eligible = np.arange(3)
         non_members = np.arange(3,4)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects2d[eligible]), tuple(self.hrects2d[non_members])), 
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects2d[eligible]), List(self.hrects2d[non_members])), 
                               np.array([True, False, False]))
         
         # hrects in hrects3d_4 which are children of hrects3d_1[0]
         eligible8 = np.arange(8)
         non_members8 = np.arange(8,64)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[non_members8])), 
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members8])), 
                               np.array([True, False, False, False, False, False, False, False]))
         
         #hrects in hrects3d_4 which are childen of hrects3d_1[0, 1] 
         eligible16 = np.arange(16) 
         non_members16 = np.arange(16,64)
 
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects3d_4[eligible16]), tuple(self.hrects3d_4[non_members16])), 
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[non_members16])), 
                               np.array([True, True, False, False, False, False, False, False, 
                                         True, True, False, False, False, False, False, False]))
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[non_members16])), 
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members16])), 
                               np.array([True, True, False, False, False, False, False, False]))
         
     def test_compare_landlocked(self):
@@ -338,47 +338,47 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         eligible = np.arange(3)
         non_members = np.arange(3,4)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects2d[eligible]), tuple(self.hrects2d[non_members])), 
-                              landlocked_bysum(tuple(self.hrects2d[eligible]), tuple(self.hrects2d[eligible]), bounds))
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects2d[eligible]), List(self.hrects2d[non_members])), 
+                              landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d[eligible]), bounds))
         
         # hrects in hrects3d_4 which are children of hrects3d_1[0]
         eligible8 = np.arange(8)
         non_members8 = np.arange(8,64)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[non_members8])), 
-                              landlocked_bysum(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[eligible8]), bounds))
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members8])), 
+                              landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible8]), bounds))
         
         #hrects in hrects3d_4 which are childen of hrects3d_1[0, 1] 
         eligible16 = np.arange(16)  
         non_members16 = np.arange(16,64)
 
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects3d_4[eligible16]), tuple(self.hrects3d_4[non_members16])), 
-                              landlocked_bysum(tuple(self.hrects3d_4[eligible16]), tuple(self.hrects3d_4[eligible16]), bounds))
-        self.assertArrayEqual(landlocked_bycontra(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[non_members16])), 
-                              landlocked_bysum(tuple(self.hrects3d_4[eligible8]), tuple(self.hrects3d_4[eligible16]), bounds))
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[non_members16])), 
+                              landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[eligible16]), bounds))
+        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members16])), 
+                              landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible16]), bounds))
         
     def test_borderheuristic(self):
         members = np.array([0,2])
         eligible = np.array([1,3])
         
-        self.assertTrue((~_borderheuristic(tuple(self.hrects2d[eligible]), tuple(self.hrects2d[members]))).all())
-        self.assertTrue((~_borderheuristic(tuple(self.hrects2d[members]), tuple(self.hrects2d[eligible]))).all())
+        self.assertTrue((~_borderheuristic(List(self.hrects2d[eligible]), List(self.hrects2d[members]))).all())
+        self.assertTrue((~_borderheuristic(List(self.hrects2d[members]), List(self.hrects2d[eligible]))).all())
                               
         members = np.array([0])
         eligible = np.array([1,2,3])
         
-        self.assertArrayEqual(_borderheuristic(tuple(self.hrects2d[eligible]), tuple(self.hrects2d[members])),
+        self.assertArrayEqual(_borderheuristic(List(self.hrects2d[eligible]), List(self.hrects2d[members])),
                               np.array([False, False, True]))
 
         members = np.array([0, 63]) 
         eligible = np.arange(1, 63)
         
-        self.assertTrue((~_borderheuristic(tuple(self.hrects3d_4[eligible]), tuple(self.hrects3d_4[members]))).all())
+        self.assertTrue((~_borderheuristic(List(self.hrects3d_4[eligible]), List(self.hrects3d_4[members]))).all())
 
         members = np.array([0, 15])
         eligible = np.concatenate((np.arange(1, 15), np.arange(16, 63)))
         
-        self.assertArrayEqual(_borderheuristic(tuple(self.hrects3d_4[eligible]), tuple(self.hrects3d_4[members])),
+        self.assertArrayEqual(_borderheuristic(List(self.hrects3d_4[eligible]), List(self.hrects3d_4[members])),
                               np.concatenate((np.zeros(46, bool), np.ones(15, bool))))
 
 
