@@ -9,8 +9,15 @@ from numba import njit
 from numba.typed import List
 from scipy.linalg import pascal
 
-from spacepartition import *
-from spacepartition import _borderheuristic
+import spacepartition as sp
+from spacepartition import hyperrectangle
+
+# =============================================================================
+# TODO 
+# Add tests that divider functions return arrays of the right shapes
+#   and that all entries are initialised (for jit ones)
+#   over some funky dims for that nnew bug
+# =============================================================================
 
 class CustomAssertions:
     def assertArrayEqual(self, a, b, equal_nan=False, msg=None):
@@ -35,6 +42,31 @@ class CustomAssertions:
 
 def f(args): 
     return sum([x**2/i for i, x in enumerate(args, 1)])
+
+@njit
+def sumsquares(arr):
+    return (arr**2).sum(axis=0)
+
+def f_ex(args):
+    return sum([x**2/i for i, x in enumerate(args, 1)]), *args
+
+@njit
+def sumsquaresex(arr):
+    return np.array([(arr**2).sum(), arr[0], arr[1]])
+
+@njit
+def vecwrap_sse(arr):
+    retval = np.empty((len(arr.T), 3))
+    for i, row in enumerate(arr.T):
+        retval[i] = sumsquaresex(row) 
+    return retval
+
+# @njit
+# def sumsquaresexvec(arr):
+#     retval = np.empty((len(arr), 3), np.float64)
+#     retval[:,0] = (arr**2).sum(axis=1)
+#     retval[:,1:] = arr[:, :2]
+#     return retval
 
 def hyper_wrapper(centre, half_length):
     """simple wrapper for creating hyperrectangle """
@@ -180,13 +212,13 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         for i, row in enumerate(conns):
             # borders everything it should
             for j in row: 
-                self.assertTrue(hrects_border(hrects[i], hrects[j]), f'i={i}, j={j}')
-                self.assertTrue(hrects_border(hrects[j], hrects[i]), f'i={i}, j={j}')
+                self.assertTrue(sp.hrects_border(hrects[i], hrects[j]), f'i={i}, j={j}')
+                self.assertTrue(sp.hrects_border(hrects[j], hrects[i]), f'i={i}, j={j}')
             # does not border things it should not border
             # returns false when hrect is the same
             for j in set(range(len(hrects))) - set(row): 
-                self.assertFalse(hrects_border(hrects[i], hrects[j]), f'i={i}, j={j}')
-                self.assertFalse(hrects_border(hrects[j], hrects[i]), f'i={i}, j={j}')
+                self.assertFalse(sp.hrects_border(hrects[i], hrects[j]), f'i={i}, j={j}')
+                self.assertFalse(sp.hrects_border(hrects[j], hrects[i]), f'i={i}, j={j}')
         
     def test_hrectborders(self):
         self._test_hrectborders(self.hrects2d, self.conns2d)
@@ -195,82 +227,82 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         self._test_hrectborders(self.hrects3d_3, self.conns3d_3)
     
     def test_findneighbours(self):
-        self.assertTrue(find_neighbours(List(self.hrects3d_2), List(self.hrects3d_2)).all())
+        self.assertTrue(sp.find_neighbours(List(self.hrects3d_2), List(self.hrects3d_2)).all())
         
         for i, row in enumerate(self.conns3d_3):
-            self.assertArraySetEqual(np.where(find_neighbours(List(self.hrects3d_3), [self.hrects3d_3[i]]))[0], row)
+            self.assertArraySetEqual(np.where(sp.find_neighbours(List(self.hrects3d_3), [self.hrects3d_3[i]]))[0], row)
         
         for i, j in enumerate(range(2, 12)):
             result, slicer = np.zeros(12, bool), np.zeros(12, bool)
             slicer[i:j] = True
-            result[~slicer] = find_neighbours(List(self.hrects3d_3[~slicer]), List(self.hrects3d_3[slicer]))
+            result[~slicer] = sp.find_neighbours(List(self.hrects3d_3[~slicer]), List(self.hrects3d_3[slicer]))
             self.assertArraySetEqual(np.where(result)[0], 
                                      set(self.conns3d_3[slicer].flatten()) - set(np.where(slicer)[0]), msg=f'i={i}, j={j}')                    
             
         for i, j in enumerate(range(3, 12)):
             result, slicer = np.zeros(12, bool), np.zeros(12, bool)
             slicer[i:j] = True
-            result[~slicer] = find_neighbours(List(self.hrects3d_3[~slicer]), List(self.hrects3d_3[slicer]))
+            result[~slicer] = sp.find_neighbours(List(self.hrects3d_3[~slicer]), List(self.hrects3d_3[slicer]))
             self.assertArraySetEqual(np.where(result)[0], 
                                      set(self.conns3d_3[slicer].flatten()) - set(np.where(slicer)[0]), msg=f'i={i}, j={j}')    
         
     def test_hrectsemibarren(self):
         h = self.hrects2d[0]
-        self.assertTrue(hrect_semibarren(h, np.array([True, True]), np.array([25.1, 25.1])))
-        self.assertFalse(hrect_semibarren(h, np.array([True, True]), np.array([25., 25.])))
+        self.assertTrue(sp.hrect_semibarren(h, np.array([True, True]), np.array([25.1, 25.1])))
+        self.assertFalse(sp.hrect_semibarren(h, np.array([True, True]), np.array([25., 25.])))
         
-        self.assertTrue(hrect_semibarren(h, np.array([True, False]), np.array([25.1, 25.1])))
-        self.assertTrue(hrect_semibarren(h, np.array([0,1]), np.array([25.1, 25.1])))
+        self.assertTrue(sp.hrect_semibarren(h, np.array([True, False]), np.array([25.1, 25.1])))
+        self.assertTrue(sp.hrect_semibarren(h, np.array([0,1]), np.array([25.1, 25.1])))
         
         # dims needs to be a valid slicer
-        self.assertRaises(Exception, hrect_semibarren, h, [0, 1], np.array([25., 25.]))
-        self.assertRaises(Exception, hrect_semibarren, h, [True, False], np.array([25., 25.]))
+        self.assertRaises(Exception, sp.hrect_semibarren, h, [0, 1], np.array([25., 25.]))
+        self.assertRaises(Exception, sp.hrect_semibarren, h, [True, False], np.array([25., 25.]))
         # min_half_length needs to be broadcastable
-        self.assertRaises(Exception, hrect_semibarren, h, np.array([True, True]), np.array([25., 25., 25.]))
-        self.assertNotRaises(Exception, hrect_semibarren, h, np.array([True, True]), 25.)
+        self.assertRaises(Exception, sp.hrect_semibarren, h, np.array([True, True]), np.array([25., 25., 25.]))
+        self.assertNotRaises(Exception, sp.hrect_semibarren, h, np.array([True, True]), 25.)
         # min_half_length should not be sliced by dims
-        self.assertRaises(   Exception, hrect_semibarren, self.hrects3d_2[0], np.array([True, True, False]), np.array([25., 25.]))
-        self.assertNotRaises(Exception, hrect_semibarren, self.hrects3d_2[0], np.array([True, True, False]), np.array([25., 25., 25.]))
+        self.assertRaises(   Exception, sp.hrect_semibarren, self.hrects3d_2[0], np.array([True, True, False]), np.array([25., 25.]))
+        self.assertNotRaises(Exception, sp.hrect_semibarren, self.hrects3d_2[0], np.array([True, True, False]), np.array([25., 25., 25.]))
         
-        self.assertFalse(hrect_semibarren(self.hrects3d_2[0], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
-        self.assertFalse(hrect_semibarren(self.hrects3d_2[1], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
-        self.assertTrue(hrect_semibarren(self.hrects3d_2[2], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
-        self.assertTrue(hrect_semibarren(self.hrects3d_2[3], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertFalse(sp.hrect_semibarren(self.hrects3d_2[0], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertFalse(sp.hrect_semibarren(self.hrects3d_2[1], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertTrue(sp.hrect_semibarren(self.hrects3d_2[2], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
+        self.assertTrue(sp.hrect_semibarren(self.hrects3d_2[3], np.ones(3, bool), np.array([25.1, 50.1, 25.1])))
         
         self.assertArrayEqual(
-            semibarren_speedup(List(self.hrects3d_2), np.ones(3, bool), np.array([25.1, 50.1, 25.1])),
+            sp.semibarren_speedup(List(self.hrects3d_2), np.ones(3, bool), np.array([25.1, 50.1, 25.1])),
             np.array([False, False, True, True]))
         
         self.assertArrayEqual(
-            semibarren_speedup(List(self.hrects3d_2), np.array([0, 1]), np.array([25.1, 25.1, 25.1])),
+            sp.semibarren_speedup(List(self.hrects3d_2), np.array([0, 1]), np.array([25.1, 25.1, 25.1])),
             np.array([True, True, False, False]))
         
         self.assertArrayEqual(
-            semibarren_speedup(List(self.hrects3d_2), np.array([1, 2]), np.array([25.1, 25.1, 25.1])),
+            sp.semibarren_speedup(List(self.hrects3d_2), np.array([1, 2]), np.array([25.1, 25.1, 25.1])),
             np.array([False, False, False, False]))
         
     
     def test_generatecentres(self):
-        self.assertArrayEqual(np.unique(generate_centres(self.hrects2d[0], np.array([0,1])), axis=0),
+        self.assertArrayEqual(np.unique(sp.generate_centres(self.hrects2d[0], np.array([0,1])), axis=0),
                               np.array([[12.5, 12.5], 
                                         [12.5, 37.5], 
                                         [37.5, 12.5],
                                         [37.5, 37.5]]))
-        self.assertArrayEqual(np.unique(generate_centres(self.hrects2d[0], np.array([0])), axis=0),
+        self.assertArrayEqual(np.unique(sp.generate_centres(self.hrects2d[0], np.array([0])), axis=0),
                               np.array([[12.5, 25.], 
                                         [37.5, 25.]]))
-        self.assertArrayEqual(np.unique(generate_centres(self.hrects2d[0], np.array([1])), axis=0),
+        self.assertArrayEqual(np.unique(sp.generate_centres(self.hrects2d[0], np.array([1])), axis=0),
                               np.array([[25., 12.5], 
                                         [25., 37.5]]))
         
         
-        self.assertArrayEqual(np.unique(generate_centres(self.hrects3d_1[-1], np.array([0,1])), axis=0),
+        self.assertArrayEqual(np.unique(sp.generate_centres(self.hrects3d_1[-1], np.array([0,1])), axis=0),
                               np.array([[62.5, 62.5, 75.], 
                                         [62.5, 87.5, 75.], 
                                         [87.5, 62.5, 75.],
                                         [87.5, 87.5, 75.]]))
         
-        self.assertArrayEqual(np.unique(generate_centres(self.hrects3d_1[-1], np.array([0,1,2])), axis=0),
+        self.assertArrayEqual(np.unique(sp.generate_centres(self.hrects3d_1[-1], np.array([0,1,2])), axis=0),
                               np.array([[62.5, 62.5, 62.5], 
                                         [62.5, 62.5, 87.5], 
                                         [62.5, 87.5, 62.5], 
@@ -285,26 +317,26 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         # hrects in hrects2d 
         eligible = np.arange(3)
         # when all rectangles are members, all eligible hrects are landlocked
-        self.assertTrue(landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d), bounds).all())
+        self.assertTrue(sp.landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d), bounds).all())
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d[eligible]), bounds), 
+        self.assertArrayEqual(sp.landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d[eligible]), bounds), 
                               np.array([True, False, False]))
         
         # hrects in hrects3d_4 which are children of hrects3d_1[0]
         eligible8 = np.arange(8)
         # when all rectangles are members, all eligible hrects are landlocked
-        self.assertTrue(landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4), bounds).all())
+        self.assertTrue(sp.landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4), bounds).all())
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible8]), bounds), 
+        self.assertArrayEqual(sp.landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible8]), bounds), 
                               np.array([True, False, False, False, False, False, False, False]))
         
         #hrects in hrects3d_4 which are childen of hrects3d_1[0, 1] 
         eligible16 = np.arange(16) 
-        self.assertTrue(landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4), bounds).all())
-        self.assertArrayEqual(landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[eligible16]), bounds), 
+        self.assertTrue(sp.landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4), bounds).all())
+        self.assertArrayEqual(sp.landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[eligible16]), bounds), 
                               np.array([True, True, False, False, False, False, False, False, 
                                         True, True, False, False, False, False, False, False]))
-        self.assertArrayEqual(landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible16]), bounds), 
+        self.assertArrayEqual(sp.landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible16]), bounds), 
                               np.array([True, True, False, False, False, False, False, False]))
 
     def test_landlockedbycontra(self):
@@ -312,24 +344,24 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         eligible = np.arange(3)
         non_members = np.arange(3,4)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects2d[eligible]), List(self.hrects2d[non_members])), 
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects2d[eligible]), List(self.hrects2d[non_members])), 
                               np.array([True, False, False]))
         
         # hrects in hrects3d_4 which are children of hrects3d_1[0]
         eligible8 = np.arange(8)
         non_members8 = np.arange(8,64)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members8])), 
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members8])), 
                               np.array([True, False, False, False, False, False, False, False]))
         
         #hrects in hrects3d_4 which are childen of hrects3d_1[0, 1] 
         eligible16 = np.arange(16) 
         non_members16 = np.arange(16,64)
 
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[non_members16])), 
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[non_members16])), 
                               np.array([True, True, False, False, False, False, False, False, 
                                         True, True, False, False, False, False, False, False]))
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members16])), 
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members16])), 
                               np.array([True, True, False, False, False, False, False, False]))
         
     def test_compare_landlocked(self):
@@ -338,48 +370,114 @@ class TestHyperrectangleFuncs(unittest.TestCase, CustomAssertions):
         eligible = np.arange(3)
         non_members = np.arange(3,4)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects2d[eligible]), List(self.hrects2d[non_members])), 
-                              landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d[eligible]), bounds))
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects2d[eligible]), List(self.hrects2d[non_members])), 
+                              sp.landlocked_bysum(List(self.hrects2d[eligible]), List(self.hrects2d[eligible]), bounds))
         
         # hrects in hrects3d_4 which are children of hrects3d_1[0]
         eligible8 = np.arange(8)
         non_members8 = np.arange(8,64)
         # specific rectangles are landlocked
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members8])), 
-                              landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible8]), bounds))
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members8])), 
+                              sp.landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible8]), bounds))
         
         #hrects in hrects3d_4 which are childen of hrects3d_1[0, 1] 
         eligible16 = np.arange(16)  
         non_members16 = np.arange(16,64)
 
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[non_members16])), 
-                              landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[eligible16]), bounds))
-        self.assertArrayEqual(landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members16])), 
-                              landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible16]), bounds))
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[non_members16])), 
+                              sp.landlocked_bysum(List(self.hrects3d_4[eligible16]), List(self.hrects3d_4[eligible16]), bounds))
+        self.assertArrayEqual(sp.landlocked_bycontra(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[non_members16])), 
+                              sp.landlocked_bysum(List(self.hrects3d_4[eligible8]), List(self.hrects3d_4[eligible16]), bounds))
         
     def test_borderheuristic(self):
         members = np.array([0,2])
         eligible = np.array([1,3])
         
-        self.assertTrue((~_borderheuristic(List(self.hrects2d[eligible]), List(self.hrects2d[members]))).all())
-        self.assertTrue((~_borderheuristic(List(self.hrects2d[members]), List(self.hrects2d[eligible]))).all())
+        self.assertTrue((~sp._borderheuristic(List(self.hrects2d[eligible]), List(self.hrects2d[members]))).all())
+        self.assertTrue((~sp._borderheuristic(List(self.hrects2d[members]), List(self.hrects2d[eligible]))).all())
                               
         members = np.array([0])
         eligible = np.array([1,2,3])
         
-        self.assertArrayEqual(_borderheuristic(List(self.hrects2d[eligible]), List(self.hrects2d[members])),
+        self.assertArrayEqual(sp._borderheuristic(List(self.hrects2d[eligible]), List(self.hrects2d[members])),
                               np.array([False, False, True]))
 
         members = np.array([0, 63]) 
         eligible = np.arange(1, 63)
         
-        self.assertTrue((~_borderheuristic(List(self.hrects3d_4[eligible]), List(self.hrects3d_4[members]))).all())
+        self.assertTrue((~sp._borderheuristic(List(self.hrects3d_4[eligible]), List(self.hrects3d_4[members]))).all())
 
         members = np.array([0, 15])
         eligible = np.concatenate((np.arange(1, 15), np.arange(16, 63)))
         
-        self.assertArrayEqual(_borderheuristic(List(self.hrects3d_4[eligible]), List(self.hrects3d_4[members])),
+        self.assertArrayEqual(sp._borderheuristic(List(self.hrects3d_4[eligible]), List(self.hrects3d_4[members])),
                               np.concatenate((np.zeros(46, bool), np.ones(15, bool))))
+        
+        
+    def test_predivide(self):
+        output = sp._predivide(self.hrects2d[0], np.arange(2), -1*np.ones(2))
+        centres, hls, gen, cuts, dims = output
+        
+        self.assertTrue(centres.shape==(4,2)) # correct values is tested by test_generatecentres
+        self.assertTrue(hls.shape==(2,)) 
+        self.assertArrayEqual(hls, np.array([12.5, 12.5]))
+        self.assertTrue(gen==self.hrects2d[0].generation+1)
+        self.assertTrue(cuts==self.hrects2d[0].cuts+len(dims))
+        self.assertArrayEqual(dims, np.array([0,1]))
+        
+        # min_half_length needs to match ndim, dims does not
+        self.assertRaises(Exception, sp._predivide, self.hrects3d_1[0], np.arange(2), -1*np.ones(2))
+        
+        output = sp._predivide(self.hrects3d_1[0], np.arange(2), -1*np.ones(3))
+        centres, hls, gen, cuts, dims = output
+        
+        self.assertTrue(centres.shape==(4,3)) # correct values is tested by test_generatecentres
+        self.assertTrue(hls.shape==(3,)) 
+        self.assertArrayEqual(hls, np.array([12.5, 12.5, 25.]))
+        self.assertTrue(gen==self.hrects2d[0].generation+1)
+        self.assertTrue(cuts==self.hrects2d[0].cuts+len(dims))
+        self.assertArrayEqual(dims, np.array([0,1]))
+        
+        output = sp._predivide(self.hrects3d_1[0], np.arange(2)+1, -1*np.ones(3))
+        centres, hls, gen, cuts, dims = output
+        
+        self.assertTrue(centres.shape==(4,3)) # correct values is tested by test_generatecentres
+        self.assertTrue(hls.shape==(3,)) 
+        self.assertArrayEqual(hls, np.array([25., 12.5, 12.5]))
+        self.assertTrue(gen==self.hrects2d[0].generation+1)
+        self.assertTrue(cuts==self.hrects2d[0].cuts+len(dims))
+        self.assertArrayEqual(dims, np.array([1,2]))
+        
+        output = sp._predivide(self.hrects3d_1[0], np.arange(3), -1*np.ones(3))
+        centres, hls, gen, cuts, dims = output
+        
+        self.assertTrue(centres.shape==(8,3)) # correct values is tested by test_generatecentres
+        self.assertTrue(hls.shape==(3,)) 
+        self.assertArrayEqual(hls, np.array([12.5, 12.5, 12.5]))
+        self.assertTrue(gen==self.hrects2d[0].generation+1)
+        self.assertTrue(cuts==self.hrects2d[0].cuts+len(dims))
+        self.assertArrayEqual(dims, np.array([0,1,2]))
+
+    def test_dividers(self):
+        centres = np.arange(8, dtype=np.float64).reshape(4,2) # 4 rows of nidm=2 
+        result = sumsquares(centres.T)
+        assert result.shape==(4,)
+        nextras=0
+        f_args=()
+        
+        self.assertArrayEqual(result, sp._divider_mp(sumsquares, centres, f_args, nextras))
+        self.assertArrayEqual(result, sp._divider_vec(sumsquares, centres, f_args, nextras))
+        self.assertArrayEqual(result, sp._divider_jitp(sumsquares, centres, f_args, nextras))
+        
+        result = vecwrap_sse(centres.T)
+        nextras = 2
+        assert result.shape==(4,3)
+        
+        self.assertArrayEqual(result, sp._divider_mp(sumsquaresex, centres, f_args, nextras))
+        self.assertArrayEqual(result, sp._divider_vec(vecwrap_sse, centres, f_args, nextras))
+        self.assertArrayEqual(result, sp._divider_jitp_extras(sumsquaresex, centres, f_args, nextras))
+
+        
 
 
 class TestAuxiliaries(unittest.TestCase, CustomAssertions):
@@ -388,57 +486,57 @@ class TestAuxiliaries(unittest.TestCase, CustomAssertions):
         arr = np.arange(5)-2
         lb = np.zeros(5)
         ub = np.ones(5)
-        self.assertArrayEqual(normalise(arr, lb, ub), arr)
+        self.assertArrayEqual(sp.normalise(arr, lb, ub), arr)
         arr = np.random.rand(5) 
-        self.assertArrayEqual(normalise(arr, lb, ub), arr)
+        self.assertArrayEqual(sp.normalise(arr, lb, ub), arr)
         
         ub = 2*ub
-        self.assertArrayEqual(normalise(arr, lb, ub), arr / 2)
+        self.assertArrayEqual(sp.normalise(arr, lb, ub), arr / 2)
 
         lb = -1*np.ones(5)
-        self.assertArrayEqual(normalise(arr, lb, ub), (arr+1)/3)
+        self.assertArrayEqual(sp.normalise(arr, lb, ub), (arr+1)/3)
         
         lb = np.arange(5)
         ub = 10*np.ones(5)
         arr = np.array([1, 3.7, 6, 7.9, 9.4])
-        self.assertArrayEqual(normalise(arr, lb, ub), np.array([0.1, 0.3, 0.5, 0.7, 0.9]))
+        self.assertArrayEqual(sp.normalise(arr, lb, ub), np.array([0.1, 0.3, 0.5, 0.7, 0.9]))
         
         arr = np.array([8, 6.4, 5.2, 4.4, 4])
-        self.assertArrayEqual(normalise(arr, lb, ub), np.array([0.8, 0.6, 0.4, 0.2, 0]))
+        self.assertArrayEqual(sp.normalise(arr, lb, ub), np.array([0.8, 0.6, 0.4, 0.2, 0]))
 
     def test_unnorm_c(self):
         # normalisation does nothing with true bounds 0-1 since normed bounds are also 0=1
         lb = np.zeros(5)
         ub = np.ones(5)
         arr = np.random.rand(5) 
-        self.assertArrayEqual(unnormalise_c(arr, lb, ub), arr)
+        self.assertArrayEqual(sp.unnormalise_c(arr, lb, ub), arr)
         arr = np.arange(5)-1
-        self.assertArrayEqual(unnormalise_c(arr, lb, ub), arr)
+        self.assertArrayEqual(sp.unnormalise_c(arr, lb, ub), arr)
                 
         lb = np.arange(5)
         ub = 10*np.ones(5)
         arr = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-        self.assertArrayEqual(unnormalise_c(arr, lb, ub), np.array([1, 3.7, 6, 7.9, 9.4]))
+        self.assertArrayEqual(sp.unnormalise_c(arr, lb, ub), np.array([1, 3.7, 6, 7.9, 9.4]))
 
         arr = np.array([0.8, 0.6, 0.4, 0.2, 0])
-        self.assertArrayEqual(unnormalise_c(arr, lb, ub), np.array([8, 6.4, 5.2, 4.4, 4]))
+        self.assertArrayEqual(sp.unnormalise_c(arr, lb, ub), np.array([8, 6.4, 5.2, 4.4, 4]))
 
     def test_unnorm_hl(self):
         # normalisation does nothing with true bounds 0-1 since normed bounds are also 0=1
         lb = np.zeros(5)
         ub = np.ones(5)
         arr = np.random.rand(5) 
-        self.assertArrayEqual(unnormalise_hl(arr, lb, ub), arr)
+        self.assertArrayEqual(sp.unnormalise_hl(arr, lb, ub), arr)
         arr = np.arange(5)-1
-        self.assertArrayEqual(unnormalise_hl(arr, lb, ub), arr)
+        self.assertArrayEqual(sp.unnormalise_hl(arr, lb, ub), arr)
                 
         lb = np.arange(5)
         ub = 10*np.ones(5)
         arr = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-        self.assertArrayEqual(unnormalise_hl(arr, lb, ub), np.array([1, 2.7, 4, 4.9, 5.4]))
+        self.assertArrayEqual(sp.unnormalise_hl(arr, lb, ub), np.array([1, 2.7, 4, 4.9, 5.4]))
 
         arr = np.array([0.8, 0.6, 0.4, 0.2, 0])
-        self.assertArrayEqual(unnormalise_hl(arr, lb, ub), np.array([8, 5.4, 3.2, 1.4, 0]))
+        self.assertArrayEqual(sp.unnormalise_hl(arr, lb, ub), np.array([8, 5.4, 3.2, 1.4, 0]))
 
 
     def test_norm_interactions(self):
@@ -447,27 +545,27 @@ class TestAuxiliaries(unittest.TestCase, CustomAssertions):
         arr = np.random.rand(10)*5
         
         #normalise is inverse of unnormalise_c and vice versa
-        self.assertArrayEqual(normalise(unnormalise_c(arr, lb, ub), lb, ub), arr)
-        self.assertArrayEqual(unnormalise_c(normalise(arr, lb, ub), lb, ub), arr)
+        self.assertArrayEqual(sp.normalise(sp.unnormalise_c(arr, lb, ub), lb, ub), arr)
+        self.assertArrayEqual(sp.unnormalise_c(sp.normalise(arr, lb, ub), lb, ub), arr)
         
         #normalise is inverse of unnormlise_hl - offset and vice versa
-        self.assertArrayEqual(unnormalise_hl(normalise(arr, lb, ub), lb, ub), arr-lb)
-        self.assertArrayEqual(normalise(unnormalise_hl(arr, lb, ub), lb, ub), arr-lb/(ub-lb))
+        self.assertArrayEqual(sp.unnormalise_hl(sp.normalise(arr, lb, ub), lb, ub), arr-lb)
+        self.assertArrayEqual(sp.normalise(sp.unnormalise_hl(arr, lb, ub), lb, ub), arr-lb/(ub-lb))
 
     def test_bool_matrix(self):
         # negative is not allowed
-        self.assertRaises(Exception, generate_boolmatrix, -1)
+        self.assertRaises(Exception, sp.generate_boolmatrix, -1)
         # 0 is empty
-        self.assertArrayEmpty(generate_boolmatrix(0))
+        self.assertArrayEmpty(sp.generate_boolmatrix(0))
         # we can check 1 exactly 
-        bm = generate_boolmatrix(1)
+        bm = sp.generate_boolmatrix(1)
         self.assertTrue((bm==np.array([[True], [False]])).all() or 
                         (bm==np.array([[False], [True]])).all())
         
         # check some features of larger dimensionnal ones since we can't easily
         # check them directly
         for ndim in (2, 4, 8):
-            bm = generate_boolmatrix(ndim)
+            bm = sp.generate_boolmatrix(ndim)
             
             #expected shape
             self.assertEqual(bm.shape[0], 2**ndim)
@@ -497,14 +595,14 @@ class TestAuxiliaries(unittest.TestCase, CustomAssertions):
                 
         for i in range(1, 16):
             n=2**i
-            self.assertEqual(factor2(n), n, msg=f"n={n}")
-            self.assertEqual(factor2(n+1), 1, msg=f"n={n}")
-            self.assertEqual(factor2(n-1), 1, msg=f"n={n}")
+            self.assertEqual(sp.factor2(n), n, msg=f"n={n}")
+            self.assertEqual(sp.factor2(n+1), 1, msg=f"n={n}")
+            self.assertEqual(sp.factor2(n-1), 1, msg=f"n={n}")
         
-        self.assertEqual(factor2(6), 2)
-        self.assertEqual(factor2(12), 4)
-        self.assertEqual(factor2(24), 8)
-        self.assertEqual(factor2(48), 16)
+        self.assertEqual(sp.factor2(6), 2)
+        self.assertEqual(sp.factor2(12), 4)
+        self.assertEqual(sp.factor2(24), 8)
+        self.assertEqual(sp.factor2(48), 16)
     
     def test_find_bool_indx(self):
         fs = np.zeros(10, dtype=bool)
@@ -514,15 +612,16 @@ class TestAuxiliaries(unittest.TestCase, CustomAssertions):
         # function only valid for n >= 1
         # function returns whole array when cannot find the full count of Trues
         for n in (1, 5, 10, np.inf):
-            self.assertArrayEqual(fs[:find_bool_indx(fs, n)], fs, msg=f"n={n}")
+            self.assertArrayEqual(fs[:sp.find_bool_indx(fs, n)], fs, msg=f"n={n}")
         
         for n in range(1, 11):
-            self.assertArrayEqual(ts[:find_bool_indx(ts, n)], np.ones(n, dtype=bool), msg=f"n={n}")
+            self.assertArrayEqual(ts[:sp.find_bool_indx(ts, n)], np.ones(n, dtype=bool), msg=f"n={n}")
         
         for n in range(1, 6):
-            self.assertArrayEqual(arr[:find_bool_indx(arr, n)], arr[:min(2*n, 10)], msg=f"n={n}")
-                
-    
+            self.assertArrayEqual(arr[:sp.find_bool_indx(arr, n)], arr[:min(2*n, 10)], msg=f"n={n}")
+     
+
+
     
 if __name__ == '__main__':
     unittest.main()

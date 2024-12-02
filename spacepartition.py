@@ -7,7 +7,7 @@ Created on Wed Sep 11 05:21:25 2024
 
 import numpy as np 
 import pandas as pd
-from numba import njit, prange, float64, int64, uint
+from numba import njit, prange, float64, int64
 from numba.experimental import jitclass
 from numba import NumbaTypeSafetyWarning, NumbaPendingDeprecationWarning
 from numba.typed import List
@@ -15,19 +15,19 @@ import datetime as dt
 from tqdm import tqdm
 import warnings
 from csv import writer
-from multiprocessing import cpu_count
+from multiprocessing import Pool
+from psutil import cpu_count
 import shutil
 import os 
-import warnings
 
 warnings.filterwarnings("ignore", category=NumbaTypeSafetyWarning)
 warnings.filterwarnings("ignore", category=NumbaPendingDeprecationWarning)
+ncpus=cpu_count(logical=False)
 
 spec = [
     ('centre', float64[:]),
     ('f', float64),
     ('extras', float64[:]),
-    ('parent_f', float64),
     ('half_length', float64[:]),
     ('generation', int64),
     ('cuts', int64),
@@ -59,6 +59,7 @@ class Spacepartition:
                  func, 
                  bounds, 
                  vectorizable=False, 
+                 multiprocessing='pool',
                  nextras=0, 
                  restart='', 
                  printfile='', 
@@ -76,6 +77,8 @@ class Spacepartition:
         self.func = func
         self.bounds = self.lb , self.ub = bounds
         self.vectorizable = vectorizable
+        assert multiprocessing.lower() in ('pool', 'jit')
+        self.multiprocessing = multiprocessing.lower()
         self.nextras = nextras
         self.restart = restart
         self.printfile = printfile
@@ -92,6 +95,9 @@ class Spacepartition:
         self.max_res = max_res
         self.near_optimal = near_optimal
 
+        if self.multiprocessing=='pool' and self.f_args != ():
+            raise ValueError("multiprocessing='pool' does not currently support f_args. Make a wrapper.")
+
         # thresholds at which we will estimate time of long steps
         self.cpu = cpu_count()
         self.cmtt = self.cpu * 1500 / self.ndim # cpu-multiple timer threshhold
@@ -100,15 +106,14 @@ class Spacepartition:
         self.noptimal_threshold = np.inf
         
         if self.vectorizable:
-            if self.nextras > 0:
-                self._dividefunc = _divide_vec_extra
-            else: 
-                self._dividefunc = _divide_vec
+            self.divider = _divider_vec
         else: 
-            if self.nextras > 0:
-                self._dividefunc = _divide_mp_extra
-            else:
-                self._dividefunc = _divide_mp
+            if self.multiprocessing in ('pool', None):
+                self.divider = _divider_mp
+            elif self.nextras == 0:
+                self.divider = _divider_jitp
+            else: 
+                self.divider = _divider_jitp_extras
         
         centre = 0.5*(self.ub - self.lb) + self.lb
         
@@ -129,13 +134,15 @@ class Spacepartition:
         self.ll_resolved = np.array([], dtype=hyperrectangle)
     
     def Initiate(self):
-        #compile
-        self._dividefunc(self.func, 
-                         self.childless[0], 
-                         np.array([0]), 
-                         self.f_args, 
-                         np.inf, 
-                         self.nextras)
+        # #compile
+        # _divide_hrect(self.func, 
+        #               self.divider,
+        #               self.childless[0], 
+        #               np.array([0]), 
+        #               self.f_args, 
+        #               np.inf, 
+        #               self.nextras,
+        #               )
         if self.restart == '':
             for file in ('parents', 'children', 'resolved'):
                 self._printout(np.array([]), file, 'w')
@@ -219,8 +226,7 @@ class Spacepartition:
             # evaluate new rectangles 
             self.new_hrects = np.array([hrect for parent in 
                                         tqdm(self.parents, desc=f'it {self.i} - #hrects: {self.np}. Evaluating Rectangles', leave=False)
-                                        for hrect in self._dividefunc(self.func, parent, self.dims, self.f_args, self.min_half_length, self.nextras)])
-            
+                                        for hrect in _divide_hrect(self.func, self.divider, parent, self.dims, self.f_args, self.min_half_length, self.nextras)])
             self._sort_new_children()
             self._printout(self.parents, 'parents', 'a')
             self._printout(self.new_resolved, 'resolved', 'a')
@@ -452,8 +458,6 @@ class Spacepartition:
         
         return return_mask
         
-
-        
     def _printout(self, arr, suffix, mode='w'):
         """Print out an array of hyperrectangles."""
         if self.printfile != '':
@@ -573,113 +577,108 @@ class Spacepartition:
         print('Completed.')
         
 #%% Heavy duty helper functions
+
+def _divide_hrect(func, divider, hrect, dims, f_args, min_half_length, nextras):
+    centres, hls, gen, cuts, dims = _predivide(hrect, dims, min_half_length)
+    f_values = divider(func, centres, f_args, nextras)
+    # hrects = _construct_hrects(centres, f_values, gen, cuts, hls, nextras)
+    if nextras>0:
+        hrects = [hyperrectangle(
+            centres[k], f_values[k, 0], gen, cuts, hls, f_values[k, 1:]) 
+            for k in range(len(centres))]
+    else:
+        hrects = [hyperrectangle(
+            centres[k], f_values[k], gen, cuts, hls, np.array([], np.float64)) 
+            for k in range(len(centres))]
+    return hrects
+
 @njit
-def _common_divide(hrect, dims, min_half_length):
+def _predivide(hrect, dims, min_half_length):
     # pre-processing common to all _divide_... functions
     dims = dims[(hrect.half_length > min_half_length)[dims]] 
-
-    l_dim = len(dims)
-    n_new = 2**l_dim
-
     centres = generate_centres(hrect, dims)
     hls = hrect.half_length.copy()
     hls[dims] /= 2 
-    gen, cuts = hrect.generation + 1, hrect.cuts + l_dim
     
-    return centres, hls, gen, cuts, n_new, dims
+    return centres, hls, hrect.generation + 1, hrect.cuts + len(dims), dims
 
 @njit
-def _divide_vec(func, hrect, dims, f_args, min_half_length, nextras):
-    centres, hls, gen, cuts, n_new, dims = _common_divide(hrect, dims, min_half_length)
-    
-    f_values = func(centres.T, *f_args)
-        
-    hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, hls[k]) 
-        for k in range(n_new)]
-
+def _construct_hrects(centres, f_values, gen, cuts, hls, nextras):
+    if nextras>0:
+        hrects = [hyperrectangle(
+            centres[k], f_values[k, 0], gen, cuts, hls, f_values[k, 1:]) 
+            for k in range(len(centres))]
+    else:
+        hrects = [hyperrectangle(
+            centres[k], f_values[k], gen, cuts, hls, np.array([], np.float64)) 
+            for k in range(len(centres))]
     return hrects
+
+def _divider_mp(func, centres, f_args, nextras):
+    with Pool(min(len(centres), ncpus)) as processPool:
+        f_values = processPool.imap(func, [x for x in centres], chunksize=len(centres)//ncpus+1)
+        f_values = np.array([f for f in f_values])
+        processPool.terminate()
+    return f_values
 
 @njit
-def _divide_vec_extra(func, hrect, dims, f_args, min_half_length, nextras, lb, ub):
-    centres, hls, gen, cuts, n_new, dims = _common_divide(hrect, dims, min_half_length)
-    
+def _divider_vec(func, centres, f_args, nextras):
     f_values = func(centres.T, *f_args)
-    f_values, extras = f_values[:,0], f_values[:,1:]
-        
-    hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, hls[k], extras[k]) 
-        for k in range(n_new)]
-
-    return hrects
+    return f_values
 
 @njit(parallel=True)
-def _divide_mp(func, hrect, dims, f_args, min_half_length, nextras):
-    centres, hls, gen, cuts, n_new, dims = _common_divide(hrect, dims, min_half_length)
-    
-    f_values = np.empty(n_new, dtype=np.float64)
-    for i in prange(n_new):
+def _divider_jitp(func, centres, f_args, nextras):
+    f_values = np.empty(len(centres), dtype=np.float64)
+    for i in prange(len(centres)):
         f_values[i] = func(centres[i,:], *f_args)
-    
-    hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, hls) 
-        for k in range(n_new)]
-    return hrects
+    return f_values
 
 @njit(parallel=True)
-def _divide_mp_extra(func, hrect, dims, f_args, min_half_length, nextras):
-    centres, hls, gen, cuts, n_new, dims = _common_divide(hrect, dims, min_half_length)
-    
-    f_values = np.empty((n_new, nextras+1), dtype=np.float64)
-    for i in prange(n_new):
+def _divider_jitp_extras(func, centres, f_args, nextras):
+    f_values = np.empty((len(centres), nextras+1), dtype=np.float64)
+    for i in prange(len(centres)):
         f_values[i] = func(centres[i,:], *f_args)
+    return f_values
+    # #catch empty values not evaluated 
+    # #cause of bug unknown, possibly to do with nnew?
+    # if f_values[:,0].min() < 70: 
+    #     mask = np.where(f_values[:,0] < 1e-6)[0]
+    #     for i in prange(len(mask)):
+    #         f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
+    #     if f_values[:,0].min() < 70: 
+    #         raise Exception(f"centre: {hrect.centre}, dims: {dims}, nnew: {len(centres)}")
 
-    #catch empty values not evaluated 
-    #cause of bug unknown, possibly to do with n_new?
-    if f_values[:,0].min() < 70: 
-        mask = np.where(f_values[:,0] < 1e-6)[0]
-        for i in prange(len(mask)):
-            f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
-        if f_values[:,0].min() < 70: 
-            raise Exception(f"centre: {hrect.centre}, dims: {dims}, n_new: {n_new}")
+    # if np.isnan(f_values[:,0]).any(): 
+    #     mask = np.where(np.isnan(f_values[:,0]))[0]
+    #     for i in prange(len(mask)):
+    #         f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
+    #     if np.isnan(f_values[:,0]).any(): 
+    #         raise Exception(f"centre: {hrect.centre}, dims: {dims}, nnew: {len(centres)}")
 
-    if np.isnan(f_values[:,0]).any(): 
-        mask = np.where(np.isnan(f_values[:,0]))[0]
-        for i in prange(len(mask)):
-            f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
-        if np.isnan(f_values[:,0]).any(): 
-            raise Exception(f"centre: {hrect.centre}, dims: {dims}, n_new: {n_new}")
+    # if (f_values<0).any(): 
+    #     mask = np.where((f_values<0).sum(axis=1))[0]
+    #     for i in prange(len(mask)):
+    #         f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
+    #     if (f_values<0).any(): 
+    #         raise Exception(f"centre: {hrect.centre}, dims: {dims}, nnew: {len(centres)}")
 
-    if (f_values<0).any(): 
-        mask = np.where((f_values<0).sum(axis=1))[0]
-        for i in prange(len(mask)):
-            f_values[mask[i], :] = func(centres[mask[i],:], *f_args)
-        if (f_values<0).any(): 
-            raise Exception(f"centre: {hrect.centre}, dims: {dims}, n_new: {n_new}")
-
-    f_values, extras = f_values[:,0], f_values[:, 1:]
-    
-    hrects = [hyperrectangle(
-        centres[k], f_values[k], gen, cuts, hls, extras[k]) 
-        for k in range(n_new)]
-    return hrects
 
 @njit(parallel=True)
 def _divide_polish(func, hrect, dims, f_args, nextras):
     centres, hrect = generate_polish_centres(hrect, dims)
-    n_new = len(centres)
+    nnew = len(centres)
     
     hls = hrect.half_length.copy()
     hls[dims] /= 2
     
-    f_values = np.empty((n_new, nextras+1), dtype=np.float64)
-    for i in prange(n_new):
+    f_values = np.empty((nnew, nextras+1), dtype=np.float64)
+    for i in prange(nnew):
         f_values[i] = func(centres[i,:], *f_args)
     f_values, extras = f_values[:,0], f_values[:, 1:]
     
     hrects = [hyperrectangle(
         centres[k], f_values[k], -1, -1, hls, extras[k]) 
-        for k in range(n_new)]
+        for k in range(nnew)]
     
     return hrects
 
@@ -808,11 +807,11 @@ def generate_centres(hrect, dims):
 @njit #parallel is slower for ndim range
 def generate_polish_centres(hrect, dims):
     centres = generate_centres(hrect, dims) 
-    n_new = 2**len(dims)
+    nnew = 2**len(dims)
     
     hl_adj = hrect.half_length[dims] / 2
-    oob = np.empty(n_new, dtype=np.bool_)
-    for i in range(n_new):
+    oob = np.empty(nnew, dtype=np.bool_)
+    for i in range(nnew):
         centres[i, dims] -= hl_adj
         oob[i] = (centres[i] == hrect.centre).all()
     

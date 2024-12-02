@@ -17,7 +17,7 @@ from psutil import cpu_count
 from Input import *
 from mga import Obj
 
-ncpus = cpu_count(logical=False)
+ncpus = cpu_count(logical=True)
 
 
 ncases = 1000
@@ -46,7 +46,6 @@ def multiprocessed():
         start = perf_counter()
         result = processPool.imap(mpObjWrapper, [x for x in cases], chunksize=ncases//ncpus + 1)
         result = np.array([res for res in result])
-        
         
         processPool.terminate()
     end = perf_counter()

@@ -24,6 +24,9 @@ def Obj(x):
                        S.LCOBT, S.LCOBL], dtype=np.float64)
     return result
     
+def mp_Obj_wrapper(x):
+    return Obj(x)
+    
     
 if __name__ == '__main__':
     starttime = dt.datetime.now()
@@ -41,7 +44,8 @@ if __name__ == '__main__':
     res = [first_pass, ultralow_res, low_res, medium_res, high_res, ultrahigh_res, polishing]
 
     problem = Spacepartition(
-        func=Obj, 
+        func=mp_Obj_wrapper, 
+        multiprocessing='pool',
         bounds=(lb, ub),
         f_args= (),
         printfile='Results/History{}'.format(scenario) if args.cb == 2 else '',
@@ -70,7 +74,7 @@ if __name__ == '__main__':
     print('step 3')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[1],
-                  'near_optimal':1.02, 
+                  'near_optimal':1.03, 
                   'max_pop':10000,
                   })
     print('step 4')
@@ -82,12 +86,12 @@ if __name__ == '__main__':
     print('step 5')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[1],
-                  'near_optimal':1.02, 
+                  'near_optimal':1.03, 
                   'max_pop':10000,
                   })
     print('polish')
     problem.Polish({'max_res':res[0], 
-                    'near_optimal':1.02})
+                    'near_optimal':1.03})
     
     result = problem.ReturnElite()
 

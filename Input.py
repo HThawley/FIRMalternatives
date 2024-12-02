@@ -85,6 +85,8 @@ elif scenario>=21:
     Nodel_int, PVl_int, Windl_int = [x[np.isin(x, coverage_int)] for x in (Nodel_int, PVl_int, Windl_int)]
     Nodel, PVl, Windl = [x[np.isin(x, coverage)] for x in (Nodel, PVl, Windl)]
 
+pv_lb, pv_ub = np.zeros(len(PVl), np.float64), 32.*np.ones(len(PVl), np.float64)
+
 if scenario >= 31:
     import warnings
     warnings.simplefilter('ignore', RuntimeWarning)
@@ -97,6 +99,9 @@ if scenario >= 31:
     
     Nodel_int, PVl_int, Windl_int = [np.unique(x) for x in (Nodel_int, PVl_int, Windl_int)]
     Nodel, PVl, Windl = [np.unique(x)  for x in (Nodel, PVl, Windl)]
+    
+    pv_lb, pv_ub = np.zeros(len(PVl), np.float64), 32*np.ones(len(PVl), np.float64)
+    pv_ub[3]=0
     
     
 intervals, nodes = MLoad.shape
@@ -111,8 +116,8 @@ contingency = list(0.25 * MLoad.max(axis=0) * pow(10, -3)) # MW to GW
 
 GBaseload = np.tile(CBaseload, (intervals, 1)) * pow(10, 3) # GW to MW
 
-lb = np.array([0., 0., 0., 0., 0.] + [0.]   * wzones + contingency   + [0.])
-ub = np.array([32., 32., 32., 0, 32.] + [32.]  * wzones + list(np.array(contingency)+16) + [1024.])
+lb = np.array(list(pv_lb) + [0.]   * wzones + contingency  + [0.])
+ub = np.array(list(pv_ub) + [32.]  * wzones + list(np.array(contingency)+16) + [1024.])
 
 #%%
 from Simulation import Reliability
