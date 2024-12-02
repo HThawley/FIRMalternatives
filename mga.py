@@ -50,7 +50,7 @@ if __name__ == '__main__':
         f_args= (),
         printfile='Results/History{}'.format(scenario) if args.cb == 2 else '',
         vectorizable=False,
-        max_dims= -1,
+        max_dims= 8,
         disp = bool(args.ver),
         restart='Results/History{}'.format(scenario) if args.resume == 1 else '',
         nextras = 5,

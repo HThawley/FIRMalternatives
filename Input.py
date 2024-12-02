@@ -10,16 +10,20 @@ from numba.experimental import jitclass
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
+# scenario
+parser.add_argument('-s', default=31, type=int, required=False, help='11, 12, 13, ...')
+
+# mga
+parser.add_argument('-cb', default=2, type=int, required=False, help='Callback: 0-None, 1-generation elites, 2-everything')
+parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
+parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
+parser.add_argument('mp', default='jit', type='str', required=False, help='Multiprocessing method: pool or jit')
+
+# DE
 parser.add_argument('-i', default=1000, type=int, required=False, help='maxiter=4000, 400')
 parser.add_argument('-p', default=100, type=int, required=False, help='popsize=2, 10')
 parser.add_argument('-m', default=0.5, type=float, required=False, help='mutation=0.5')
 parser.add_argument('-r', default=0.3, type=float, required=False, help='recombination=0.3')
-
-parser.add_argument('-s', default=31, type=int, required=False, help='11, 12, 13, ...')
-
-parser.add_argument('-cb', default=2, type=int, required=False, help='Callback: 0-None, 1-generation elites, 2-everything')
-parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
-parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
 
 args = parser.parse_args()
 scenario = args.s
