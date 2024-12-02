@@ -100,7 +100,7 @@ if scenario >= 31:
     Nodel_int, PVl_int, Windl_int = [np.unique(x) for x in (Nodel_int, PVl_int, Windl_int)]
     Nodel, PVl, Windl = [np.unique(x)  for x in (Nodel, PVl, Windl)]
     
-    pv_lb, pv_ub = np.zeros(len(PVl), np.float64), 32*np.ones(len(PVl), np.float64)
+    pv_lb, pv_ub = np.zeros(len(Nodel), np.float64), 32*np.ones(len(Nodel), np.float64)
     pv_ub[3]=0
     
     

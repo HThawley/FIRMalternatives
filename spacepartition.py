@@ -134,15 +134,15 @@ class Spacepartition:
         self.ll_resolved = np.array([], dtype=hyperrectangle)
     
     def Initiate(self):
-        # #compile
-        # _divide_hrect(self.func, 
-        #               self.divider,
-        #               self.childless[0], 
-        #               np.array([0]), 
-        #               self.f_args, 
-        #               np.inf, 
-        #               self.nextras,
-        #               )
+        #compile
+        _divide_hrect(self.func, 
+                      self.divider,
+                      self.childless[0], 
+                      np.array([0]), 
+                      self.f_args, 
+                      np.inf, 
+                      self.nextras,
+                      )
         if self.restart == '':
             for file in ('parents', 'children', 'resolved'):
                 self._printout(np.array([]), file, 'w')
