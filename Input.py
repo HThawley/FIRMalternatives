@@ -17,7 +17,7 @@ parser.add_argument('-s', default=31, type=int, required=False, help='11, 12, 13
 parser.add_argument('-cb', default=2, type=int, required=False, help='Callback: 0-None, 1-generation elites, 2-everything')
 parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
 parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
-parser.add_argument('mp', default='jit', type='str', required=False, help='Multiprocessing method: pool or jit')
+parser.add_argument('-mp', default='jit', type='str', required=False, help='Multiprocessing method: pool or jit')
 
 # DE
 parser.add_argument('-i', default=1000, type=int, required=False, help='maxiter=4000, 400')
