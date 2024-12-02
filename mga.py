@@ -14,7 +14,6 @@ from csv import writer
 from Input import *
 from spacepartition import Spacepartition
 
-
 @njit
 def Obj(x):
     S = Solution(x)
@@ -29,6 +28,14 @@ def mp_Obj_wrapper(x):
     
     
 if __name__ == '__main__':
+    mp = args.mp
+    if mp.lower() == 'pool':
+        func = mp_Obj_wrapper
+    elif mp.lower() == 'jit':
+        func = Obj
+    else:
+        raise ValueError
+    
     starttime = dt.datetime.now()
     print("Optimisation starts at", starttime)
     
@@ -44,8 +51,8 @@ if __name__ == '__main__':
     res = [first_pass, ultralow_res, low_res, medium_res, high_res, ultrahigh_res, polishing]
 
     problem = Spacepartition(
-        func=mp_Obj_wrapper, 
-        multiprocessing='pool',
+        func=func, 
+        multiprocessing=mp,
         bounds=(lb, ub),
         f_args= (),
         printfile='Results/History{}'.format(scenario) if args.cb == 2 else '',

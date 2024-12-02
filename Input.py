@@ -17,7 +17,7 @@ parser.add_argument('-s', default=31, type=int, required=False, help='11, 12, 13
 parser.add_argument('-cb', default=2, type=int, required=False, help='Callback: 0-None, 1-generation elites, 2-everything')
 parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
 parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
-parser.add_argument('-mp', default='jit', type='str', required=False, help='Multiprocessing method: pool or jit')
+parser.add_argument('-mp', default='jit', type=str, required=False, help='Multiprocessing method: pool or jit')
 
 # DE
 parser.add_argument('-i', default=1000, type=int, required=False, help='maxiter=4000, 400')
@@ -27,6 +27,7 @@ parser.add_argument('-r', default=0.3, type=float, required=False, help='recombi
 
 args = parser.parse_args()
 scenario = args.s
+
 
 Nodel = np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])
 PVl =   np.array(['NSW']*7 + ['FNQ']*1 + ['QLD']*2 + ['FNQ']*3 + ['SA']*6 + ['TAS']*0 + ['VIC']*1 + ['WA']*1 + ['NT']*1)
