@@ -8,7 +8,7 @@ from numba import njit
 
 @njit()
 def Reliability(solution, flexible):
-    Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GWind.sum(axis=1) -
+    Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GOnsW.sum(axis=1) -
                solution.GBaseload.sum(axis=1) - flexible)
 
     Pcapacity = solution.CPHP.sum() * 1000 # S-CPHP(j), GW to MW

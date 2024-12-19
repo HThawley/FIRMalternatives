@@ -24,7 +24,7 @@ def ObjectiveWrapper(xs):
 def Objective(x):
     """This is the objective function"""
     S = Solution(x)
-    S._evaluate()
+    S._evaluate(costs)
     return S.LCOE + S.Penalties
 
 def Callback_1(xk, convergence=None):

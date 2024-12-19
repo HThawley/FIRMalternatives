@@ -15,9 +15,9 @@ from Input import *
 from spacepartition import Spacepartition
 
 @njit
-def Obj(x):
+def Obj(x, costs):
     S = Solution(x)
-    S._evaluate()
+    S._evaluate(costs)
     result = np.array([S.LCOE + S.Penalties, 
                        S.LCOE, S.LCOG, S.LCOBS, 
                        S.LCOBT, S.LCOBL], dtype=np.float64)
@@ -25,7 +25,6 @@ def Obj(x):
     
 def mp_Obj_wrapper(x):
     return Obj(x)
-    
     
 if __name__ == '__main__':
     mp = args.mp
@@ -54,7 +53,7 @@ if __name__ == '__main__':
         func=func, 
         multiprocessing=mp,
         bounds=(lb, ub),
-        f_args= (),
+        f_args=(costs,),
         printfile='Results/History{}'.format(scenario) if args.cb == 2 else '',
         vectorizable=False,
         max_dims= 8,
@@ -78,26 +77,26 @@ if __name__ == '__main__':
                   'max_pop':25,
                   })
     
-    print('step 3')
-    problem.Step({'max_iter':np.inf,
-                  'max_res':res[1],
-                  'near_optimal':1.03, 
-                  'max_pop':10000,
-                  })
-    print('step 4')
-    problem.Step({'max_iter':20,
-                  'max_res':res[1],
-                  'near_optimal':1.1, 
-                  'max_pop':50,
-                  })
-    print('step 5')
-    problem.Step({'max_iter':np.inf,
-                  'max_res':res[1],
-                  'near_optimal':1.03, 
-                  'max_pop':10000,
-                  })
+    # print('step 3')
+    # problem.Step({'max_iter':np.inf,
+    #               'max_res':res[1],
+    #               'near_optimal':1.03, 
+    #               'max_pop':10000,
+    #               })
+    # print('step 4')
+    # problem.Step({'max_iter':20,
+    #               'max_res':res[1],
+    #               'near_optimal':1.1, 
+    #               'max_pop':50,
+    #               })
+    # print('step 5')
+    # problem.Step({'max_iter':np.inf,
+    #               'max_res':res[1],
+    #               'near_optimal':1.03, 
+    #               'max_pop':10000,
+    #               })
     print('polish')
-    problem.Polish({'max_res':res[0], 
+    problem.Polish({'max_res':res[1], 
                     'near_optimal':1.03})
     
     result = problem.ReturnElite()

@@ -13,16 +13,16 @@ from matplotlib.colors import Normalize
 
 import graphutils as gu
 
-scenario=12
+scenario=31
 dpi=250
-costConstraint=1.03
+costConstraint=1.02
 
 
 
 os.chdir('\\'.join(os.getcwd().split('\\')[:-1]))
 
 pidx, widx, sidx, headers = gu.zoneTypeIndx(scenario)
-file =fr"Results\History{scenario}-polished.csv"
+file =fr"Results\History{scenario}-resolved.csv"
 data = pd.read_csv(file, header=None)
 
 os.chdir('graphs')
@@ -107,10 +107,23 @@ def continuous_heatmap(data, x, y, val, agg='min', colormap='rocket', reverse_co
     xmin, xmax = data[x].min(), data[x].max()
     ymin, ymax = data[y].min(), data[y].max()
     
-    x_bins = data[x].nunique() if x_bins=='max' else x_bins
-    y_bins = data[y].nunique() if y_bins=='max' else y_bins
+    if x_bins == 'max':
+        x_bins = data[x].nunique() 
+        xdata = data[x].copy()
+    else: 
+        xbinedges = np.linspace(xmin, xmax, x_bins)
+        xdata = np.digitize(data[x].to_numpy(), xbinedges)
+        xdata = pd.Series(xdata, name=x)
+        
+    if y_bins == 'max':
+        y_bins = data[y].nunique() 
+        ydata = data[y].copy()
+    else: 
+        ybinedges = np.linspace(ymin, ymax, y_bins)
+        ydata = np.digitize(data[y].to_numpy(), ybinedges)
+        ydata = pd.Series(ydata, name=y)
 
-    data = aggregate_data(data, x, y, val, agg)
+    data = aggregate_data(data, xdata, ydata, val, agg)
     
     Z = data.reset_index().pivot(index=y, columns=x, values=val).to_numpy()
     
@@ -163,7 +176,7 @@ def compare_heatmaps(data, xs, ys, vals, aggs=['min'], colormap='rocket', revers
     else: 
         norm=None
     
-    for i in range(maxlen):
+    for i in range(maxlen): 
         X, Y = np.meshgrid(
             np.linspace(data[xs[i]].min(), data[xs[i]].max(), x_bins[i]), 
             np.linspace(data[ys[i]].min(), data[ys[i]].max(), y_bins[i]))
@@ -235,12 +248,11 @@ def heatmap_pairplot(data, val, vars=None, x_vars=None, y_vars=None, agg='min',
                 axs[row, col].set_xlim([None, None])
                 axs[row, col].set_yticks([])
                 
-                
-                
 # =============================================================================
 #                 upper triangle
 # =============================================================================
-            if row < col:             
+            if row < col:     
+                k+=1
                 # axs[row, col].set_ylim([data[ys[row]].min()*0.98, data[ys[row]].max()*1.02])
                 # axs[row, col].set_xlim([data[xs[col]].min()*0.98, data[xs[col]].max()*1.02])
 
@@ -250,7 +262,9 @@ def heatmap_pairplot(data, val, vars=None, x_vars=None, y_vars=None, agg='min',
                 
                 # # c_upper = axs[row,col].pcolormesh(X, Y, np.ma.masked_invalid(Zs[k]), cmap=colormap, norm=norm)
                 # c = axs[row,col].pcolormesh(X, Y, np.ma.masked_invalid(Zs[k]), cmap=colormap, norm=norm)
-                k+=1
+# =============================================================================
+#                 lower triangle
+# =============================================================================
             if row > col: 
                 axs[row, col].set_ylim([data[ys[row]].min()*0.98, data[ys[row]].max()*1.02])
                 axs[row, col].set_xlim([data[xs[col]].min()*0.98, data[xs[col]].max()*1.02])
@@ -262,7 +276,6 @@ def heatmap_pairplot(data, val, vars=None, x_vars=None, y_vars=None, agg='min',
                 # c_lower = axs[row,col].pcolormesh(X, Y, np.ma.masked_invalid(Zs[k]), cmap='viridis', norm=norm)
                 c = axs[row,col].pcolormesh(X, Y, np.ma.masked_invalid(Zs[k]), cmap=colormap, norm=norm)
                 k+=1
-                pass
 # =============================================================================
 #                 lower triangle
 # =============================================================================
@@ -321,14 +334,19 @@ compare_heatmaps(
     ['wind'], 
     ['LCOE'], 
     ['min', 'median', 'count'], 
-    reverse_color=True,
+    reverse_color=False,
     axs=axs, 
     fig=fig, 
     share_cmap=False)
 
 
 fig, axs = plt.subplots(4, 4, figsize=(18, 17), dpi=500, sharex=False, sharey=False)
-heatmap_pairplot(data, 'LCOE', vars=['solar', 'wind', 'php', 'phs'], figaxs=(fig,axs))
+heatmap_pairplot(
+    data, 
+    val='LCOE', 
+    vars=['solar', 'wind', 'php', 'phs'], 
+    figaxs=(fig,axs)
+    )
 
 
 #%%
@@ -497,7 +515,7 @@ def advanced_pareto_pairplot(data, cols, plotcols=None, fig=None, dpi=500):
         
     maxsize = 0
     for k, v in bins.items():
-        while bins[k] > 512: 
+        while bins[k] > 128: 
             bins[k] = int(bins[k]/2) 
         
         slide = (data[k].max()-data[k].min())/ bins[k]

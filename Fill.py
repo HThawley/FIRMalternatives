@@ -17,7 +17,6 @@ def Fill(solution):
     for t in range(intervals-1, -1, -1):
         if deficit[t] > 0:
             flexible[t] = min(deficit[t], flex_cap)
-    
             fill += (deficit[t]-flexible[t])/efficiency
 
         if fill > 0:
@@ -32,12 +31,11 @@ def Analysis(x):
 
     starttime = dt.datetime.now()
     print('Fill starts at', starttime)
-
     Flex = Fill(Solution(x))
-    np.savetxt('Results/Dispatch_Flexible{}.csv'.format(scenario), Flex, fmt='%f', delimiter=',', newline='\n', header='Flexible energy resources')
-
     endtime = dt.datetime.now()
     print('Fill took', endtime - starttime)
+
+    np.savetxt(f'Results/Dispatch_Flexible{scenario}.csv', Flex, fmt='%f', delimiter=',', newline='\n', header='Flexible energy resources')
 
     from Statistics import Information
     Information(x, Flex)
@@ -45,6 +43,6 @@ def Analysis(x):
     return True
 
 if __name__ == '__main__':
-    x = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',', dtype=float)
+    x = np.genfromtxt(f'Results/Optimisation_resultx{scenario}.csv', delimiter=',', dtype=float)
     
     Analysis(x)

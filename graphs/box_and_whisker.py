@@ -15,18 +15,17 @@ from matplotlib.colors import Normalize
 import graphutils as gu
 
 dpi=250
-costConstraint=1.03
+costConstraint=1.02
 
 os.chdir('\\'.join(os.getcwd().split('\\')[:-1]))
 
-from Input import TSWind, TSPV, nodes, scenario
+from Input import TSWind, TSPV, nodes, scenario, pidx, widx, sidx
 
-file =fr"Results\History{scenario}-polished.csv"
+file =fr"Results\History{scenario}-resolved.csv"
 data = pd.read_csv(file, header=None)
-pidx, widx, sidx, headers = gu.zoneTypeIndx(scenario)
+# pidx, widx, sidx, headers = gu.zoneTypeIndx(scenario)
 
 os.chdir('graphs')
-
 solarCols=[f'pv-{n}' for n in range(1, pidx+1)]
 windCols=[f'w-{n}' for n in range(pidx+1, widx+1)]
 phpCols=[f'sp-{n}' for n in range(widx+1, sidx+1)]
@@ -37,6 +36,8 @@ varCols=solarCols+windCols+phpCols+phsCols
 data.columns = ['objective', 'generation', 'cuts', 'LCOE', 'LCOG', 'LCOBS', 'LCOBT', 'LCOBL']+varCols
 # data.columns = ['LCOE', 'generation', 'cuts']+varCols
 
+data = data.drop_duplicates(subset=varCols)
+
 data['penalties'] = (data['objective']-data['LCOE']).round(5)
 data = data[data['penalties'] <0.1]
 
@@ -46,7 +47,7 @@ resolved = data['cuts'].max()
 data = data.loc[data['cuts'] == resolved,:]
 
 data = data.drop(columns=['generation', 'cuts'])
-# data = data[data['LCOE'] < costConstraint*mincost]
+data = data[data['LCOE'] < costConstraint*mincost]
 
 data['solar'] = data[solarCols].sum(axis=1)
 data['wind'] = data[windCols].sum(axis=1)
@@ -58,6 +59,8 @@ data['gen'] = data['solar'] + data['wind']
 data['phhrs'] = data['phs']/data['php']
 
 data = data.round(4)
+
+
 
 #%%
 

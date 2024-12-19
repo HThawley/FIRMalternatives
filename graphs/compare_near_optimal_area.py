@@ -15,7 +15,7 @@ import warnings
 
 import graphutils as gu
 
-scenario=12
+scenario=31
 dpi=250
 
 
@@ -25,7 +25,7 @@ pidx, widx, sidx, headers = gu.zoneTypeIndx(scenario)
 
 costConstraint=1.02
 
-file =fr"Results\History{scenario}-polished.csv"
+file =fr"Results\History{scenario}-resolved.csv"
 data = pd.read_csv(file, header=None)
 
 

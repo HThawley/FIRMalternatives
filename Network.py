@@ -12,7 +12,7 @@ def Transmission(solution):
     solution.MPeak = np.atleast_2d(solution.flexible).T * solution.CPeak / solution.CPeak.sum()
     solution.MDeficit = np.atleast_2d(solution.Deficit / solution.MLoad.sum(axis=1)).T * solution.MLoad 
     
-    solution.MPV, solution.MWind, MPW = solution.GPV, solution.GWind, solution.GPV + solution.GWind
+    solution.MPV, solution.MOnsW, MPW = solution.GPV, solution.GOnsW, solution.GPV + solution.GOnsW
     solution.MSpillage = np.atleast_2d(solution.Spillage / MPW.sum(axis=1)).T * MPW
     
     # dzsm = solution.CPHP != 0 # divide by zero safe mask
