@@ -165,7 +165,6 @@ class Spacepartition:
         return Result(self.elite.centre, self.elite.extras, self.elite.f, 
                       self.fev, self.i, self.elite.half_length)       
         
-        
     def _parse_step_dict(self, step_dict):
         keys = step_dict.keys()
         setdiff = set(keys) - set(('f_args', 'max_iter', 'max_fev', 'max_dims', 
@@ -192,7 +191,6 @@ class Spacepartition:
 
             # only update if necessary (can be slow)
             self._update_resolution()
-        
         
     def _update_resolution(self):
         self.childless = np.concatenate((self.childless, 
@@ -263,10 +261,8 @@ class Spacepartition:
         print(' '*160, '\r', f'it {self.i} - Sorting resolved points. Estimated time: ', sep='', end='', flush=True)  
         # select classification method based on approx no. of comparisons required
         if nedge * nresolved < nedge * non_res or len(self.childless)==0: 
-            print('by sum')
             _sort_func = self._sort_by_sum
         else: 
-            print('by contra')
             _sort_func = self._sort_by_contra
     
         ll_mask = self._time_long_func(_sort_func, np.ones(len(self.edge_resolved), dtype=np.bool_), nedge, nedge*nresolved)
@@ -452,15 +448,12 @@ class Spacepartition:
             
             sort_time = (dt.datetime.now() - sort_start) * (base_mask.sum() - ntime) / ntime
             print(f'{sort_time}. Estimated end time: {dt.datetime.now() + sort_time}. ', end='\r', flush=True)
-            print('\n evaluating')
             # evaluate remaining values
             eval = long_func(~time_mask)
-            print('evaluated')
             return_mask = np.concatenate((
                 return_mask, 
                 eval,
                 ))
-            print('concatenated')
         return return_mask
         
     def _do_printout(self, arr, path, mode):
@@ -475,7 +468,7 @@ class Spacepartition:
     def _pre_printout(self, suffix, mode):
         path, temppath = f'{self.printfile}-{suffix}.csv', f'{self.printfile}-{suffix}-temp.csv'
         if mode == 'a':
-                shutil.copyfile(path, temppath)
+            shutil.copyfile(path, temppath)
         return path, temppath
     
     def _commit_printout(self, path, temppath):
@@ -483,7 +476,6 @@ class Spacepartition:
         os.remove(temppath)
 
     def _printout(self, arr, suffix, mode='w'):
-        """Print out an array of hyperrectangles."""
         if self.printfile == '':
             return 
         print(' '*160, '\r', f'it {self.i} - #hrects: {self.np}. Writing out to file. Do not Interrupt.', sep='', end='\r', flush=True)
@@ -507,7 +499,7 @@ class Spacepartition:
             p, tp = self._pre_printout(s, m)
             paths.append(p)
             temppaths.append(tp)
-            self._do_printout(a, s, m)
+            self._do_printout(a, tp, m)
         for p, tp in zip(paths, temppaths):
             self._commit_printout(p, tp)
 
