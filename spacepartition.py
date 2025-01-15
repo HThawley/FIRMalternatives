@@ -201,18 +201,18 @@ class Spacepartition:
                                          self.ll_resolved))
         self.new_resolved = np.array([], dtype=hyperrectangle)
         if len(self.childless) > 0:
-            resolved_mask = semibarren_speedup(List(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length) 
+            resolved_mask = semibarren_speedup(list(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length) 
             self.new_resolved = self.childless[resolved_mask]
             self.childless = self.childless[~resolved_mask]
             
         self.ll_resolved = np.array([], dtype=hyperrectangle)
         self.edge_resolved = np.array([], dtype=hyperrectangle)
 
-        self._printout(self.childless, 'children', 'w')
-        self._printout(self.new_resolved, 'resolved', 'w')
-        
-    
-        
+        self._batch_printout(
+            [self.childless, self.new_resolved],
+            ['children', 'resolved'], 
+            'w')
+
     def _iterate(self):
         miter = self.max_iter + self.i
         mfev = self.max_fev + self.fev
@@ -228,9 +228,10 @@ class Spacepartition:
                                         tqdm(self.parents, desc=f'it {self.i} - #hrects: {self.np}. Evaluating Rectangles', leave=False)
                                         for hrect in _divide_hrect(self.func, self.divider, parent, self.dims, self.f_args, self.min_half_length, self.nextras)])
             self._sort_new_children()
-            self._printout(self.parents, 'parents', 'a')
-            self._printout(self.new_resolved, 'resolved', 'a')
-            self._printout(self.childless, 'children', 'w')
+            self._batch_printout(
+                [self.parents, self.new_resolved, self.childless],
+                ['parents', 'resolved', 'children'],
+                ['a','a','w'])
             
             it_time = dt.datetime.now() - it_start
             print(' '*160, end='\r', flush=True)
@@ -262,8 +263,10 @@ class Spacepartition:
         print(' '*160, '\r', f'it {self.i} - Sorting resolved points. Estimated time: ', sep='', end='', flush=True)  
         # select classification method based on approx no. of comparisons required
         if nedge * nresolved < nedge * non_res or len(self.childless)==0: 
+            print('by sum')
             _sort_func = self._sort_by_sum
         else: 
+            print('by contra')
             _sort_func = self._sort_by_contra
     
         ll_mask = self._time_long_func(_sort_func, np.ones(len(self.edge_resolved), dtype=np.bool_), nedge, nedge*nresolved)
@@ -305,7 +308,7 @@ class Spacepartition:
                                np.zeros(len(self.childless) - nearoptimalcount, dtype=np.bool_)))
         if best.sum() > 0:
             # only rectangles which can be split on current splitting axes
-            best = ~semibarren_speedup(List(self.childless[best]), self.dims, self.min_half_length)
+            best = ~semibarren_speedup(list(self.childless[best]), self.dims, self.min_half_length)
             # append 0s to best to match length of childless array
             best = np.concatenate((best, np.zeros(len(self.childless) -len(best), dtype=np.bool_)))
         return best
@@ -314,11 +317,11 @@ class Spacepartition:
         self.noptimal_resolved = np.array([h.f < self.noptimal_threshold for h in self.edge_resolved])
         if self.noptimal_resolved.sum() > 0 and len(self.childless) > 0:
             # rectangles which cannot be split on the axes are ineligible
-            self.eligible = ~semibarren_speedup(List(self.childless), self.dims, self.min_half_length)
+            self.eligible = ~semibarren_speedup(list(self.childless), self.dims, self.min_half_length)
             if self.eligible.sum() > 0:
                 # rectangles failing beyond maximal extent of near-optimal resolved are ineligible
-                self.eligible[self.eligible] = ~_borderheuristic(List(self.childless[self.eligible]), 
-                                                                 List(self.edge_resolved[self.noptimal_resolved]), 
+                self.eligible[self.eligible] = ~_borderheuristic(list(self.childless[self.eligible]), 
+                                                                 list(self.edge_resolved[self.noptimal_resolved]), 
                                                                  self.lb==self.ub)
             print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
         
@@ -331,11 +334,11 @@ class Spacepartition:
     def _get_polishing_neighbours(self):
         if len(self.edge_noptimal) > 0 and len(self.childless) > 0:
             # rectangles which cannot be split on the axes are ineligible
-            self.eligible = ~semibarren_speedup(List(self.childless), self.dims, self.min_half_length)
+            self.eligible = ~semibarren_speedup(list(self.childless), self.dims, self.min_half_length)
             if self.eligible.sum() > 0:
                 # rectangles failing beyond maximal extent of near-optimal resolved are ineligible
-                self.eligible[self.eligible] = ~_borderheuristic(List(self.childless[self.eligible]), 
-                                                                 List(self.edge_noptimal), 
+                self.eligible[self.eligible] = ~_borderheuristic(list(self.childless[self.eligible]), 
+                                                                 list(self.edge_noptimal), 
                                                                  self.lb==self.ub)
             if self.eligible.sum() > 0:
                 print(' '*160, '\r', f'it {self.i} - Identifying near-optimal neighbours. Estimated time: ', sep='', end='', flush=True)  
@@ -386,7 +389,7 @@ class Spacepartition:
             self._update_elite()
 
             # identify resolved rectangles 
-            self.resolved_mask = semibarren_speedup(List(self.new_hrects), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
+            self.resolved_mask = semibarren_speedup(list(self.new_hrects), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
             
             # sort new into childless and resolved
             self.new_resolved = self.new_hrects[self.resolved_mask]
@@ -399,33 +402,33 @@ class Spacepartition:
         
     def _find_neighbours_parent(self, mask):
         return find_neighbours(
-            List(self.childless[self.eligible * mask]), 
-            List(self.edge_resolved[self.noptimal_resolved])
+            list(self.childless[self.eligible * mask]), 
+            list(self.edge_resolved[self.noptimal_resolved])
             )
     
     def _find_neighbours_polish(self, mask):
         return find_neighbours(
-            List(self.childless[self.eligible * mask]), 
-            List(self.edge_noptimal)
+            list(self.childless[self.eligible * mask]), 
+            list(self.edge_noptimal)
             )
     
     def _sort_by_sum(self, mask):
         return landlocked_bysum(
-            List(self.edge_resolved[mask]),
-            List(self.all_resolved),
+            list(self.edge_resolved[mask]),
+            list(self.all_resolved),
             self.bounds
             )
         
     def _sort_by_contra(self, mask): 
         return landlocked_bycontra(
-            List(self.edge_resolved[mask]),
-            List(self.childless)
+            list(self.edge_resolved[mask]),
+            list(self.childless)
             )  
         
     def _sort_nop_by_contra(self, mask): 
         return landlocked_bycontra(
-            List(self.edge_noptimal[mask]),
-            List(self.childless)
+            list(self.edge_noptimal[mask]),
+            list(self.childless)
             )  
         
     def _time_long_func(self, long_func, base_mask, _cmtt = -1, _cctt = -1):
@@ -449,33 +452,65 @@ class Spacepartition:
             
             sort_time = (dt.datetime.now() - sort_start) * (base_mask.sum() - ntime) / ntime
             print(f'{sort_time}. Estimated end time: {dt.datetime.now() + sort_time}. ', end='\r', flush=True)
-            
+            print('\n evaluating')
             # evaluate remaining values
+            eval = long_func(~time_mask)
+            print('evaluated')
             return_mask = np.concatenate((
                 return_mask, 
-                long_func(~time_mask)
+                eval,
                 ))
-        
+            print('concatenated')
         return return_mask
         
+    def _do_printout(self, arr, path, mode):
+        with open(path, mode, newline='') as csvfile:
+            if len(arr) > 0: # this needs to be inside with to support erasure
+                printout = np.concatenate((np.array([(h.f, h.generation, h.cuts) for h in arr]), 
+                                           np.array([h.extras for h in arr]), 
+                                           np.array([h.centre for h in arr])),
+                                           axis=1)
+                writer(csvfile).writerows(printout)
+
+    def _pre_printout(self, suffix, mode):
+        path, temppath = f'{self.printfile}-{suffix}.csv', f'{self.printfile}-{suffix}-temp.csv'
+        if mode == 'a':
+                shutil.copyfile(path, temppath)
+        return path, temppath
+    
+    def _commit_printout(self, path, temppath):
+        shutil.copyfile(temppath, path)
+        os.remove(temppath)
+
     def _printout(self, arr, suffix, mode='w'):
         """Print out an array of hyperrectangles."""
-        if self.printfile != '':
-            print(' '*160, '\r', f'it {self.i} - #hrects: {self.np}. Writing out to file. Do not Interrupt.', sep='', end='\r', flush=True)
-            path, temppath = f'{self.printfile}-{suffix}.csv', f'{self.printfile}-{suffix}-temp.csv'
-            if mode == 'a':
-                shutil.copyfile(path, temppath)
-            
-            with open(temppath, mode, newline='') as csvfile:
-                if len(arr) > 0:
-                    printout = np.concatenate((np.array([(h.f, h.generation, h.cuts) for h in arr]), 
-                                               np.array([h.extras for h in arr]), 
-                                               np.array([h.centre for h in arr])),
-                                              axis=1)
-                    writer(csvfile).writerows(printout)
-            shutil.copyfile(temppath, path)
-            os.remove(temppath)
-        
+        if self.printfile == '':
+            return 
+        print(' '*160, '\r', f'it {self.i} - #hrects: {self.np}. Writing out to file. Do not Interrupt.', sep='', end='\r', flush=True)
+        path, temppath = self._pre_printout(suffix, mode)
+        self._do_printout(arr, temppath, mode)
+        self._commit_printout(path, temppath)
+    
+    def _batch_printout(self, arrs, suffixes, modes='w'):
+        if self.printfile == '':
+            return 
+        print(' '*160, '\r', f'it {self.i} - #hrects: {self.np}. Writing out to file. Do not Interrupt.', sep='', end='\r', flush=True)
+
+        assert len(arrs) == len(suffixes)
+        if isinstance(modes, str):
+            modes = [modes]*len(arrs)
+        else: 
+            assert len(modes) == len(arrs)
+
+        paths, temppaths = [],[]
+        for a, s, m in zip(arrs, suffixes, modes):
+            p, tp = self._pre_printout(s, m)
+            paths.append(p)
+            temppaths.append(tp)
+            self._do_printout(a, s, m)
+        for p, tp in zip(paths, temppaths):
+            self._commit_printout(p, tp)
+
     def _restart(self):
         if self.disp:
             print('Restarting optimisation where',self.restart,'left off.')
@@ -555,12 +590,14 @@ class Spacepartition:
             self.childless = np.concatenate((self.new_hrects, 
                                               np.array([_adjust_polish_parent(parent, self.dims) for parent in self.parents])))
             
-            resolved_mask = semibarren_speedup(List(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
+            resolved_mask = semibarren_speedup(list(self.childless), np.ones(self.ndim, dtype=np.bool_), self.min_half_length)
             self.new_resolved = self.childless[resolved_mask]
             self.childless = self.childless[~resolved_mask]
             
-            self._printout(self.childless, 'pol-child', mode='w')
-            self._printout(self.new_resolved, 'polished', mode='a')
+            self._batch_printout(
+                [self.childless, self.new_resolved], 
+                ['pol-child', 'polished'], 
+                ['w','a'])
             
             it_time = dt.datetime.now() - it_start
             print(' '*160, end='\r', flush=True)
