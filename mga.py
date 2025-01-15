@@ -26,28 +26,30 @@ def Obj(x, costs):
 def mp_Obj_wrapper(x):
     return Obj(x)
     
-if __name__ == '__main__':
-    mp = args.mp
-    if mp.lower() == 'pool':
-        func = mp_Obj_wrapper
-    elif mp.lower() == 'jit':
-        func = Obj
-    else:
-        raise ValueError
+
+mp = args.mp
+if mp.lower() == 'pool':
+    func = mp_Obj_wrapper
+elif mp.lower() == 'jit':
+    func = Obj
+else:
+    raise ValueError
     
+z = (pzones+wzones+nodes)
+first_pass = np.array([10.1]*z + [500.1])
+ultralow_res = np.array([1.1]*z + [60]) 
+low_res = np.array([0.1]*z + [10.0]) # 100 MW, 10 GWh
+medium_res = np.array([0.01]*z + [1.0]) # 10 MW, 1 GWh
+high_res = np.array([0.001]*z + [0.01]) # 1 MW, 100 MWh
+ultrahigh_res = np.array([0.000_1]*z + [0.01]) # 0.1 MW, 10 MWh
+polishing = np.array([0.000_001]*z + [0.000_1]) # 1 kW, 100 kWh
+
+res = [first_pass, ultralow_res, low_res, medium_res, high_res, ultrahigh_res, polishing]
+
+if __name__ == '__main__':
+
     starttime = dt.datetime.now()
     print("Optimisation starts at", starttime)
-    
-    z = (pzones+wzones+nodes)
-    first_pass = np.array([10.1]*z + [500.1])
-    ultralow_res = np.array([1.1]*z + [60]) 
-    low_res = np.array([0.1]*z + [10.0]) # 100 MW, 10 GWh
-    medium_res = np.array([0.01]*z + [1.0]) # 10 MW, 1 GWh
-    high_res = np.array([0.001]*z + [0.01]) # 1 MW, 100 MWh
-    ultrahigh_res = np.array([0.000_1]*z + [0.01]) # 0.1 MW, 10 MWh
-    polishing = np.array([0.000_001]*z + [0.000_1]) # 1 kW, 100 kWh
-    
-    res = [first_pass, ultralow_res, low_res, medium_res, high_res, ultrahigh_res, polishing]
 
     problem = Spacepartition(
         func=func, 
@@ -65,36 +67,36 @@ if __name__ == '__main__':
     problem.Initiate()
     
     print('step 1')
-    problem.Step({'max_iter':15,
+    problem.Step({'max_iter':10,
                   'max_res':res[0],
                   'near_optimal':np.inf, 
-                  'max_pop':1,
-                  })
-    print('step 2')
-    problem.Step({'max_iter':15,
-                  'max_res':res[1],
-                  'near_optimal':2.5, 
                   'max_pop':25,
                   })
+    print('step 2')
+    problem.Step({'max_iter':10,
+                  'max_res':res[1],
+                  'near_optimal':2.5, 
+                  'max_pop':100,
+                  })
     
-    # print('step 3')
-    # problem.Step({'max_iter':np.inf,
-    #               'max_res':res[1],
-    #               'near_optimal':1.03, 
-    #               'max_pop':10000,
-    #               })
-    # print('step 4')
-    # problem.Step({'max_iter':20,
-    #               'max_res':res[1],
-    #               'near_optimal':1.1, 
-    #               'max_pop':50,
-    #               })
-    # print('step 5')
-    # problem.Step({'max_iter':np.inf,
-    #               'max_res':res[1],
-    #               'near_optimal':1.03, 
-    #               'max_pop':10000,
-    #               })
+    print('step 3')
+    problem.Step({'max_iter':np.inf,
+                  'max_res':res[1],
+                  'near_optimal':1.01, 
+                  'max_pop':10000,
+                  })
+    print('step 4')
+    problem.Step({'max_iter':20,
+                  'max_res':res[1],
+                  'near_optimal':1.1, 
+                  'max_pop':50,
+                  })
+    print('step 5')
+    problem.Step({'max_iter':np.inf,
+                  'max_res':res[1],
+                  'near_optimal':1.01, 
+                  'max_pop':10000,
+                  })
     print('polish')
     problem.Polish({'max_res':res[1], 
                     'near_optimal':1.03})
