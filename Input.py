@@ -22,7 +22,6 @@ parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean -
 parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
 
 args = parser.parse_args()
-assert args.w > 0 or args.w in (-1, -2)
 scenario = args.s
 
 Nodel = np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])
