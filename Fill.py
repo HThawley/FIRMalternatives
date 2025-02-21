@@ -8,7 +8,7 @@ def Fill(solution):
     
     flexible = np.zeros(intervals, dtype=np.float64)
     deficit = Reliability(solution, flexible=flexible)
-    flex_cap = CPeak.sum()*1000
+    flex_cap = CPeak.sum()
     
     fill = 0    
     for t in range(intervals-1, -1, -1):
@@ -23,8 +23,7 @@ def Fill(solution):
             fill -= flex
             flexible[t] += flex
     
-    Deficit = Reliability(solution, flexible=flexible)
-    return Deficit
+    return Reliability(solution, flexible=flexible)
             
 if __name__=='__main__':
     x = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',', dtype=float)
