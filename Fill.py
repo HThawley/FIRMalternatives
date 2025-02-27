@@ -105,7 +105,7 @@ def Fill(solution):
         # This flex_trickle is not being used as it has been previously, but it is a 
         #    convenient spare array to avoid the time cost of allocating new memory
         flex_trickle = np.minimum(flex_power, solution.CHydro.sum()-solution.GHydro)
-        flex_trickle= flex_trickle * min(1, -hydro_exceedance/flex_trickle.sum())
+        flex_trickle = flex_trickle * min(1, -hydro_exceedance/flex_trickle.sum()) if flex_trickle.sum() > 0 else flex_trickle
         solution.GHydro += flex_trickle
         flex_power -= flex_trickle
     
@@ -113,7 +113,7 @@ def Fill(solution):
         # This flex_trickle is not being used as it has been previously, but it is a 
         #    convenient spare array to avoid the time cost of allocating new memory
         flex_trickle = np.minimum(flex_power, solution.CBio.sum()-solution.GBio)
-        flex_trickle= flex_trickle * min(1, -bio_exceedance/flex_trickle.sum())
+        flex_trickle = flex_trickle * min(1, -bio_exceedance/flex_trickle.sum()) if flex_trickle.sum() > 0 else flex_trickle
         solution.GBio += flex_trickle
         flex_power -= flex_trickle
     
