@@ -11,19 +11,18 @@ from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument('-i', default=1000, type=int, required=False, help='maxiter=4000, 400')
 parser.add_argument('-p', default=100, type=int, required=False, help='popsize=2, 10')
-parser.add_argument('-m', default=0.5, type=float, required=False, help='mutation=0.5')
+parser.add_argument('-ml', default=0.45, type=float, required=False, help='mutation lower=0.5')
+parser.add_argument('-mu', default=0.55, type=float, required=False, help='mutation upper=0.5')
 parser.add_argument('-r', default=0.3, type=float, required=False, help='recombination=0.3')
 
 parser.add_argument('-s', default=21, type=int, required=False, help='11, 12, 13, ...')
 
-parser.add_argument('-cb', default=2, type=int, required=False, help='Callback: 0-None, 1-generation elites, 2-everything')
 parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
-parser.add_argument('-resume', default=0, type=int, required=False, help='Boolean - whether to restart')
 
 args = parser.parse_args()
 scenario = args.s
 
-from Costs import cost_factors
+from Costs import Raw_Costs
 
 Nodel = np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])
 PVl =   np.array(['NSW']*7 + ['FNQ']*1 + ['QLD']*2 + ['FNQ']*3 + ['SA']*6 + ['TAS']*0 + ['VIC']*1 + ['WA']*1 + ['NT']*1)
@@ -48,7 +47,7 @@ Hydro_resource = 16_000 # GWh p.a. # Annual resource limit
 Hydro_cf = Hydro_resource / CHydro.sum()
 
 # FQ, NQ, NS, NV, AS, SW, only TV constrained
-DClengths = np.array([1500, 1000, 1000, 800, 1200, 2400, 400]) #km
+DClengths = np.array([1500, 1000, 1000, 800, 1200, 2400, 400], np.int64) #km
 DCloss = DClengths * 0.03 * pow(10, -3) # unitless
 undersea_mask = np.array([0, 0, 0, 0, 0, 0, 1], dtype=bool)
 CDC6max = 3 * 0.63 # GW
@@ -115,9 +114,7 @@ ub = np.array([32.] * pzones + [32.]  * wzones + [32.] * nodes + nodes*[32.] + [
 
 #%%
 
-costs = cost_factors(scenario, DClengths, undersea_mask, network_mask)
-# pre-allocating memory will save time on future evaluation with jit
-TDC_empty = np.zeros((intervals, len(network_mask)), dtype=np.float64)
+costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask).CostFactors()
 
 # from Simulation import Reliability
 from Network import Transmission
@@ -196,6 +193,9 @@ solution_spec = [
     ('LCOBS',       float64),
     ('LCOBT',       float64),
     ('LCOBL',       float64),
+    ('Capex',       float64),
+    ('Opex',        float64),
+    ('energyloss',  float64),
 ]
 
 @jitclass(solution_spec)
@@ -208,6 +208,7 @@ class Solution:
         
         self.intervals, self.nodes = intervals, nodes
         self.resolution, self.efficiency, self.years = resolution, efficiency, years
+        #TODO: remove cbaseload from Hydro_res 
         self.Hydro_res, self.Bio_res = [res/resolution*years for res in (Hydro_resource, Bio_resource)]
         
         self.CPV   = x[: pidx]
@@ -229,12 +230,16 @@ class Solution:
         deficit = Fill(self).sum()*self.resolution
         self.Penalties += max(0, deficit)
 
-        TDC = np.abs(Transmission(self)) if self.scenario>=21 else TDC_empty
-
-        CDC = np.zeros(len(network_mask), dtype=np.float64)
-        for j in prange(len(network_mask)):
-            for i in range(intervals):
-                CDC[j] = np.maximum(TDC[i, j], CDC[j])
+        if scenario >= 21:
+            TDC = np.abs(Transmission(self))
+            self.CDC = np.zeros(len(network_mask), dtype=np.float64)
+            for j in range(len(network_mask)):
+                for i in range(self.intervals):
+                    self.CDC[j] = np.maximum(TDC[i, j], self.CDC[j])
+        else: 
+            self.TDC = np.zeros(len(network_mask), np.float64)
+            self.CDC = np.zeros(len(network_mask), np.float64)
+            
         # Penatlies += max(0, CDC[6] - CDC6max) 
 
         cost = np.array([
@@ -253,31 +258,33 @@ class Solution:
             # generation vom
             # pv, onsw, offw are 0
             self.GGas.sum() * self.resolution / self.years * costs.gas[2],
-            (self.GHydro.sum() + self.GBio.sum() + self.CBaseload.sum()*intervals
+            (self.GHydro.sum() + self.GBio.sum() + self.CBaseload.sum()*self.intervals
              ) * self.resolution / self.years * costs.hydro[2],
             
             # storage 
             self.CPHP.sum() * costs.phes[0],
             self.CPHS * costs.phes[1],
             self.CPHP.sum() * costs.phes[2],
-            self.GDischarge.sum() * self.resolution / self.years * costs.phes[3] + 
+            self.GDischarge.sum() * self.resolution / self.years * costs.phes[3], 
             costs.phes[4],
             ] +
             
             # transmission network
             list((self.CPV.sum() + self.COnsW.sum() + self.CGas.sum() + self.CHydro.sum() 
              + self.CBio.sum())*costs.ac) +
-            list(CDC * costs.hvdc) 
+            list((self.CDC * costs.hvdc).sum(axis=1))
             ) / 1_000_000_000 # $billions p.a.
         
-        energyloss = np.abs(energy - (TDC.sum(axis=0) * DCloss * 0.000_001).sum() * self.resolution / self.years)
-        self.LCOE = cost.sum() / energyloss
+        self.energyloss = np.abs(energy - (TDC.sum(axis=0) * DCloss * 0.000_001).sum() * self.resolution / self.years)
+        self.LCOE = cost.sum() / self.energyloss
         self.LCOG = 1_000_000 * (cost[:10].sum()) / (self.resolution / self.years * (
             self.MPV.sum() + self.MOnsW.sum() + (self.GFlexible+self.CBaseload.sum()).sum()))
-        self.LCOBS = cost[10:15].sum()/energyloss
-        self.LCOBT = cost[15:].sum()/energyloss
+        self.LCOBS = cost[10:15].sum()/self.energyloss
+        self.LCOBT = cost[15:].sum()/self.energyloss
         self.LCOBL = self.LCOE - self.LCOG - self.LCOBS - self.LCOBT
-
+        self.Capex = sum([cost[i] for i in [0,1,2,3,10,11,14,15,18]])/self.energyloss
+        self.Opex = sum([cost[i] for i in [4,5,6,7,8,9,12,13,16,17,19,20]])/self.energyloss
+        
 
 if __name__=='__main__':
     x = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',', dtype=float)
