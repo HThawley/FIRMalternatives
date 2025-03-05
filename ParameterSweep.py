@@ -106,8 +106,8 @@ if __name__ == '__main__':
     
     # raise KeyboardInterrupt()
     
-    # with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
-    #     writer(file)
+    with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
+        writer(file)
             
     start = True
     args.ml = 0.5
@@ -129,12 +129,12 @@ if __name__ == '__main__':
                     if start:
                         init = 'latinhypercube'
                         x0=None
-                        argsi= args.i
-                        args.i = 1000
+                        # argsi= args.i
+                        # args.i = 1000
                         start=False
                     else:
-                        raise KeyboardInterrupt
-                        args.i = argsi
+                        # raise KeyboardInterrupt
+                        # args.i = argsi
                         init = select_population(costs)
                         x0 = init[:, 0]
                     

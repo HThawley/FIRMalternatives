@@ -63,7 +63,7 @@ class CallbackClass:
         """
         self.it = 0 
         self.step = step
-        self.conv = conv//step
+        self.conv = conv
         self.conv_counter = 0
         self.start = dt.now()
         self.elite = np.inf
@@ -96,7 +96,7 @@ class CallbackClass:
 #         return population[candidate]
 
 def Optimise(init='latinhypercube', x0=None):
-    print(args.i, args.ml, args.mu, args.p)
+    # print(args.i, args.ml, args.mu, args.p)
     starttime = dt.now()
     print("Optimisation starts at", starttime)
     result = differential_evolution(
@@ -108,14 +108,14 @@ def Optimise(init='latinhypercube', x0=None):
         popsize=args.p, 
         mutation=(args.ml, args.mu), 
         recombination=args.r,
-        disp=True, 
+        disp=False, 
         polish=False, 
         updating='deferred', 
         vectorized=True,
         strategy='currenttobest1bin',#Strategy(),
         init=init,
         x0=x0,
-        # callback=CallbackClass(25, 50)
+        callback=CallbackClass(25, 50)
         # workers=1, #vectorisation overrides mp
         )
     
