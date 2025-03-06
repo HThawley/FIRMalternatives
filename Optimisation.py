@@ -55,28 +55,30 @@ def Objective(x, costs):
         )
         
 class CallbackClass:
-    def __init__(self, step=50, conv=100):
+    def __init__(self, display=50, stagnation=100, stag_tol=1e-6):
         """
         This object is called after each iteration.
-        Step - how often (# iterations) to print intermediate results to console
-        Conv - # of iterations with no improvement to best objective after which to terminate
+        display    - how often (# iterations) to print intermediate results to console
+        stagnation - # of iterations with no improvement to best objective after which to terminate
         """
         self.it = 0 
-        self.step = step
-        self.conv = conv
-        self.conv_counter = 0
+        self.display = display
+        self.stagnation = stagnation
+        self.stag_counter = 0
+        self.stag_tol = stag_tol
         self.start = dt.now()
         self.elite = np.inf
     def __call__(self, intermediate_result):
-        if self.it % self.step == 0:
+        if self.it % self.display == 0:
             print(f'Iteration: {self.it}. Time taken: {dt.now()-self.start}. Best value: {intermediate_result.fun}')
-        if intermediate_result.fun == self.elite:
-            self.conv_counter+=1
-        if self.conv_counter == self.conv:
-            return True
-        if intermediate_result.fun < self.elite:
+        if intermediate_result.fun - self.elite > -self.stag_tol:
+            self.stag_counter+=1
+        else: 
             self.elite = intermediate_result.fun
-            self.conv_counter=0
+            self.stag_counter=0
+        if self.stag_counter == self.stagnation:
+            return True
+        
         self.it+=1
         return False
     
@@ -95,7 +97,7 @@ class CallbackClass:
 #         raise Exception
 #         return population[candidate]
 
-def Optimise(init='latinhypercube', x0=None):
+def Optimise(costs, init='latinhypercube', x0=None):
     # print(args.i, args.ml, args.mu, args.p)
     starttime = dt.now()
     print("Optimisation starts at", starttime)

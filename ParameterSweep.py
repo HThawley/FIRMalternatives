@@ -47,7 +47,7 @@ def select_population(costs):
         
         
     i+=1
-    x0 = unnormalise(x0, lb, ub).T
+    x0 = unnormalise(x0, lb, ub)
     return x0
 
 @njit
@@ -106,59 +106,62 @@ if __name__ == '__main__':
     
     # raise KeyboardInterrupt()
     
-    with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
-        writer(file)
+    # with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
+    #     writer(file)
             
     start = True
     args.ml = 0.5
     args.mu = 1.5
     args.r = 0.4
-    for pv_step in pv_capex:
-        raw_costs.pv[0] = pv_step
+    for carbon_step in carbon_price:
+        raw_costs.UpdateCarbonPrice(carbon_step)
         costs = raw_costs.CostFactors()
-        for wind_step in wind_capex:
-            raw_costs.onsw[0] = wind_step
+        for gas_step in gas_fuel:
+            raw_costs.gas[3] = gas_step
             costs = raw_costs.CostFactors()
-            for gas_step in gas_fuel:
-                raw_costs.gas[3] = gas_step
+            for pv_step in pv_capex:
+                raw_costs.pv[0] = pv_step
                 costs = raw_costs.CostFactors()
-                for carbon_step in carbon_price:
-                    raw_costs.UpdateCarbonPrice(carbon_step)
+                for wind_step in wind_capex:
+                    raw_costs.onsw[0] = wind_step
                     costs = raw_costs.CostFactors()
+            
+                
                     
-                    if start:
-                        init = 'latinhypercube'
-                        x0=None
-                        # argsi= args.i
-                        # args.i = 1000
-                        start=False
-                    else:
-                        # raise KeyboardInterrupt
-                        # args.i = argsi
-                        init = select_population(costs)
-                        x0 = init[:, 0]
+                    # if start:
+                    #     init = 'latinhypercube'
+                    #     x0=None
+                    #     argsi= args.i
+                    #     args.i = 50
+                    #     start=False
+                    # else:
+                    #     raise KeyboardInterrupt
+                    #     args.i = argsi
+                    init = select_population(costs)
+                    x0 = init[0]
                     
-                    Optimise(init, x0)
+                    Optimise(costs, init, x0)
 
     args.ml = 0.25
     args.mu = 0.5
     args.r = 0.15
-    for p, pv_step in enumerate(pv_capex):
-        raw_costs.pv[0] = pv_step
+    for r, gas_step in enumerate(gas_fuel):
+        raw_costs.gas[3] = gas_step
         costs = raw_costs.CostFactors()
-        for q, wind_step in enumerate(wind_capex):
-            raw_costs.onsw[0] = wind_step
+        for s, carbon_step in enumerate(carbon_price):
+            raw_costs.UpdateCarbonPrice(carbon_step)
             costs = raw_costs.CostFactors()
-            for r, gas_step in enumerate(gas_fuel):
-                raw_costs.gas[3] = gas_step
+            for p, pv_step in enumerate(pv_capex):
+                raw_costs.pv[0] = pv_step
                 costs = raw_costs.CostFactors()
-                for s, carbon_step in enumerate(carbon_price):
-                    raw_costs.UpdateCarbonPrice(carbon_step)
+                for q, wind_step in enumerate(wind_capex):
+                    raw_costs.onsw[0] = wind_step
                     costs = raw_costs.CostFactors()
+            
                     
                     init = select_population(costs)
-                    x0 = init[:, 0]
-                    result, t = Optimise(init, x0)
+                    x0 = init[0]
+                    result, t = Optimise(costs, init, x0)
 
                     with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
                         writer(csvfile).writerow([result.fun] + list(result.x))
