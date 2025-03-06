@@ -1,10 +1,5 @@
-# Modelling input and assumptions
-# Copyright (c) 2019, 2020 Bin Lu, The Australian National University
-# Licensed under the MIT Licence
-# Correspondence: bin.lu@anu.edu.au
-
 import numpy as np
-from numba import njit, float64, int64, prange, boolean
+from numba import njit, float64, int64
 from numba.experimental import jitclass
 from argparse import ArgumentParser
 
@@ -210,6 +205,7 @@ class Solution:
         self.resolution, self.efficiency, self.years = resolution, efficiency, years
         #TODO: remove cbaseload from Hydro_res 
         self.Hydro_res, self.Bio_res = [res/resolution*years for res in (Hydro_resource, Bio_resource)]
+        self.Hydro_res -= CBaseload.sum()*self.intervals
         
         self.CPV   = x[: pidx]
         self.COnsW = x[pidx: widx]
@@ -227,8 +223,7 @@ class Solution:
         self.MLoad = MLoad
 
     def _evaluate(self, costs):
-        deficit = Fill(self).sum()*self.resolution
-        self.Penalties += max(0, deficit)
+        self.Penalties += max(0, Fill(self).sum()*self.resolution)
 
         if scenario >= 21:
             TDC = np.abs(Transmission(self))

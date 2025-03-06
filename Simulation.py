@@ -1,8 +1,3 @@
-# To simulate energy supply-demand balance based on long-term, high-resolution chronological data
-# Copyright (c) 2019, 2020 Bin Lu, The Australian National University
-# Licensed under the MIT Licence
-# Correspondence: bin.lu@anu.edu.au
-
 import numpy as np
 from numba import njit
 

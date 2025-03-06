@@ -55,7 +55,7 @@ def Objective(x, costs):
         )
         
 class CallbackClass:
-    def __init__(self, display=50, stagnation=100, stag_tol=1e-6):
+    def __init__(self, display=50, stagnation=100, stag_rate=1e-6):
         """
         This object is called after each iteration.
         display    - how often (# iterations) to print intermediate results to console
@@ -65,13 +65,13 @@ class CallbackClass:
         self.display = display
         self.stagnation = stagnation
         self.stag_counter = 0
-        self.stag_tol = stag_tol
+        self.stag_rate = stag_rate
         self.start = dt.now()
         self.elite = np.inf
     def __call__(self, intermediate_result):
         if self.it % self.display == 0:
             print(f'Iteration: {self.it}. Time taken: {dt.now()-self.start}. Best value: {intermediate_result.fun}')
-        if intermediate_result.fun - self.elite > -self.stag_tol:
+        if self.elite - intermediate_result.fun < self.stag_rate:
             self.stag_counter+=1
         else: 
             self.elite = intermediate_result.fun
@@ -83,21 +83,7 @@ class CallbackClass:
         return False
     
 
-# class Strategy:
-#     def __init__(self):
-#         pass
-#     def __call__(self, candidate:int, population:np.ndarray, rng=None) -> np.ndarray:
-#         obj = ObjectiveParallel(population, costs)[:,0]
-#         scale = rng.uniform(args.ml, args.mu)
-        
-        
-        
-#         self.candidate = candidate
-#         self.population = population
-#         raise Exception
-#         return population[candidate]
-
-def Optimise(costs, init='latinhypercube', x0=None):
+def Optimise(costs, init='latinhypercube', x0=None, callback_args=()):
     # print(args.i, args.ml, args.mu, args.p)
     starttime = dt.now()
     print("Optimisation starts at", starttime)
@@ -106,7 +92,7 @@ def Optimise(costs, init='latinhypercube', x0=None):
         args=(costs,),
         bounds=list(zip(lb, ub)), 
         tol=0,
-        maxiter=args.i, 
+        maxiter=np.inf,#args.i, 
         popsize=args.p, 
         mutation=(args.ml, args.mu), 
         recombination=args.r,
@@ -114,11 +100,10 @@ def Optimise(costs, init='latinhypercube', x0=None):
         polish=False, 
         updating='deferred', 
         vectorized=True,
-        strategy='currenttobest1bin',#Strategy(),
+        strategy='currenttobest1bin',
         init=init,
         x0=x0,
-        callback=CallbackClass(25, 50)
-        # workers=1, #vectorisation overrides mp
+        callback=CallbackClass(*callback_args)
         )
     
     endtime = dt.now()

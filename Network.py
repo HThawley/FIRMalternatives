@@ -1,8 +1,3 @@
-# A transmission network model to calculate inter-regional power flows
-# Copyright (c) 2019, 2020 Bin Lu, The Australian National University
-# Licensed under the MIT Licence
-# Correspondence: bin.lu@anu.edu.au
-
 import numpy as np
 from numba import njit
 

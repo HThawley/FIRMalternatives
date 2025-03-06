@@ -74,12 +74,12 @@ def LPGM(solution):
                  'Pumped hydro energy storage,Energy deficit,Energy spillage,' \
                  'Transmission,PHES-Charge,PHES-Storage'
 
-        Topology = solution.Topology[np.where(np.in1d(np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']), coverage) == True)[0]]
+        MImport = solution.MImport[np.where(np.in1d(np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']), coverage) == True)[0]]
 
         for j in range(nodes):
             C = np.stack([(solution.MLoad)[:, j], solution.MHydro[:, j], solution.MBio[:, j], solution.MPV[:, j], 
                           solution.MWind[:, j], solution.MDischarge[:, j], solution.MDeficit[:, j],
-                          -1 * solution.MSpillage[:, j], Topology[j], -1 * solution.MCharge[:, j],
+                          -1 * solution.MSpillage[:, j], MImport[j], -1 * solution.MCharge[:, j],
                           solution.MStorage[:, j]])
             C = np.around(C.transpose())
 
@@ -196,7 +196,7 @@ def Information(x, flexible):
     S.MBio = S.MPeak - S.MHydro
     S.MHydro += S.MBaseload
 
-    S.Topology = np.array([-1 * S.FQ, -1 * (S.NQ + S.NS + S.NV), -1 * S.AS, S.FQ + S.NQ, S.NS + S.AS - S.SW, -1 * S.TV, S.NV + S.TV, S.SW])
+    S.MImport = np.array([-1 * S.FQ, -1 * (S.NQ + S.NS + S.NV), -1 * S.AS, S.FQ + S.NQ, S.NS + S.AS - S.SW, -1 * S.TV, S.NV + S.TV, S.SW])
 
     LPGM(S)
     GGTA(S)
@@ -208,7 +208,7 @@ def Information(x, flexible):
 
 if __name__ == '__main__':
     capacities = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',')
-    flexible = np.ones((intervals, ), dtype=np.float64)*CPeak.sum()*1000
+    flexible = np.ones((intervals, ), dtype=np.float64)*CPeak.sum()
     
     # flexible = np.genfromtxt('Results/Dispatch_Flexible{}.csv'.format(scenario), delimiter=',', skip_header=1)
     # capacities=np.array([0.78125,0.78125,0.78125,0.78125,0.78125,2.34375,0.78125,

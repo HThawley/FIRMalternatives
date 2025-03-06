@@ -87,24 +87,6 @@ def calculate_costs(history, costs):
     return Lcoes
 
 if __name__ == '__main__':
-    # for p, pv_step in enumerate(pv_capex):
-    #     raw_costs.pv[0] = pv_step
-    #     costs = raw_costs.CostFactors()
-    #     for q, wind_step in enumerate(wind_capex):
-    #         raw_costs.onsw[0] = wind_step
-    #         costs = raw_costs.CostFactors()
-    #         for r, gas_step in enumerate(gas_fuel):
-    #             raw_costs.gas[3] = gas_step
-    #             costs = raw_costs.CostFactors()
-    #             for s, carbon_step in enumerate(carbon_price):
-    #                 raw_costs.UpdateCarbonPrice(carbon_step)
-    #                 costs = raw_costs.CostFactors()
-    #                 init = select_population(costs)
-    #                 print('p', p, 'q', q, 'r', r, 's', s, Objective(init[:,0], costs)[0])
-                    
-    
-    
-    # raise KeyboardInterrupt()
     
     # with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
     #     writer(file)
@@ -126,30 +108,27 @@ if __name__ == '__main__':
                     raw_costs.onsw[0] = wind_step
                     costs = raw_costs.CostFactors()
             
-                
+                    if start:
+                        init = 'latinhypercube'
+                        x0=None
+                        start=False
+                    else:
+                        init = select_population(costs)
+                        x0 = init[0]
                     
-                    # if start:
-                    #     init = 'latinhypercube'
-                    #     x0=None
-                    #     argsi= args.i
-                    #     args.i = 50
-                    #     start=False
-                    # else:
-                    #     raise KeyboardInterrupt
-                    #     args.i = argsi
-                    init = select_population(costs)
-                    x0 = init[0]
+                    result, t = Optimise(costs, init, x0, (25, 50, 1))
                     
-                    Optimise(costs, init, x0)
+                    with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
+                        writer(csvfile).writerow([result.fun] + list(result.x))
 
     args.ml = 0.25
     args.mu = 0.5
     args.r = 0.15
-    for r, gas_step in enumerate(gas_fuel):
-        raw_costs.gas[3] = gas_step
+    for s, carbon_step in enumerate(carbon_price):
+        raw_costs.UpdateCarbonPrice(carbon_step)
         costs = raw_costs.CostFactors()
-        for s, carbon_step in enumerate(carbon_price):
-            raw_costs.UpdateCarbonPrice(carbon_step)
+        for r, gas_step in enumerate(gas_fuel):
+            raw_costs.gas[3] = gas_step
             costs = raw_costs.CostFactors()
             for p, pv_step in enumerate(pv_capex):
                 raw_costs.pv[0] = pv_step
@@ -157,11 +136,10 @@ if __name__ == '__main__':
                 for q, wind_step in enumerate(wind_capex):
                     raw_costs.onsw[0] = wind_step
                     costs = raw_costs.CostFactors()
-            
                     
                     init = select_population(costs)
                     x0 = init[0]
-                    result, t = Optimise(costs, init, x0)
+                    result, t = Optimise(costs, init, x0, (50, 100, 1e-6))
 
                     with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
                         writer(csvfile).writerow([result.fun] + list(result.x))
