@@ -77,6 +77,7 @@ class CallbackClass:
             self.elite = intermediate_result.fun
             self.stag_counter=0
         if self.stag_counter == self.stagnation:
+            print(f'Iteration: {self.it}. Time taken: {dt.now()-self.start}. Best value: {intermediate_result.fun}')
             return True
         
         self.it+=1
@@ -92,7 +93,7 @@ def Optimise(costs, init='latinhypercube', x0=None, callback_args=()):
         args=(costs,),
         bounds=list(zip(lb, ub)), 
         tol=0,
-        maxiter=np.inf,#args.i, 
+        maxiter=10_000,
         popsize=args.p, 
         mutation=(args.ml, args.mu), 
         recombination=args.r,

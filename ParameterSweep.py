@@ -5,7 +5,7 @@ from csv import writer
 
 from Input import * 
 from Costs import Raw_Costs 
-from Optimisation import Optimise, Objective
+from Optimisation import Optimise
 
 
 
@@ -27,28 +27,14 @@ costs = raw_costs.CostFactors()
 
 def select_population(costs):
     history = pd.read_csv(f'Results/History{scenario}.csv', header=None, 
-                          usecols=[0,1,2,3,4]+list(range(7, 14+len(lb)))).to_numpy()
+                          usecols=[0,1,2,3,4]+list(range(7, 14+len(lb))))
+    history = history.drop_duplicates(subset=range(12, history.shape[1])).to_numpy()
     Lcoes = calculate_costs(history, costs)
-    
     sort_array = np.argsort(Lcoes)
-    noptimaln = max(np.where(Lcoes[sort_array]<Lcoes.min()*1.05)[0][-1], args.p*50)
-    noptimaln = max(len(Lcoes), noptimaln)
-    history = normalise(history[sort_array[:noptimaln], 12:], lb, ub)
-    
-    x0n = min(args.p*10, len(history))
-    x0 = np.empty((x0n, len(lb)))
-    x0[0] = history[0]
-    
-    i=0
-    distances = calculate_distances(history, x0[i])
-    for i in range(1, x0n):
-        distances = (distances*i + calculate_distances(history, x0[i-1]))/(i+1)
-        x0[i] = history[distances.argmax()]
-        
-        
-    i+=1
-    x0 = unnormalise(x0, lb, ub)
-    return x0
+    noptimaln = min(len(Lcoes), args.p)
+    history = history[sort_array[:noptimaln], 12:]
+
+    return history
 
 @njit
 def normalise(arr, lb, ub):
@@ -58,12 +44,10 @@ def normalise(arr, lb, ub):
 def unnormalise(arr, lb, ub):
     return arr*(ub-lb) + lb
 
-
 @njit
 def calculate_distances(history, centroid):
     distances = ((history - centroid)**2).sum(axis=1)**(1/2)
     return distances
-
 
 @njit
 def calculate_costs(history, costs):
@@ -95,16 +79,16 @@ if __name__ == '__main__':
     args.ml = 0.5
     args.mu = 1.5
     args.r = 0.4
-    for carbon_step in carbon_price:
+    for s, carbon_step in enumerate(carbon_price):
         raw_costs.UpdateCarbonPrice(carbon_step)
         costs = raw_costs.CostFactors()
-        for gas_step in gas_fuel:
+        for r, gas_step in enumerate(gas_fuel):
             raw_costs.gas[3] = gas_step
             costs = raw_costs.CostFactors()
-            for pv_step in pv_capex:
+            for p, pv_step in enumerate(pv_capex):
                 raw_costs.pv[0] = pv_step
                 costs = raw_costs.CostFactors()
-                for wind_step in wind_capex:
+                for q, wind_step in enumerate(wind_capex):
                     raw_costs.onsw[0] = wind_step
                     costs = raw_costs.CostFactors()
             
@@ -115,7 +99,8 @@ if __name__ == '__main__':
                     else:
                         init = select_population(costs)
                         x0 = init[0]
-                    
+                        if len(init) < args.p:
+                            init = 'latinhypercube'
                     result, t = Optimise(costs, init, x0, (25, 50, 1))
                     
                     with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
@@ -139,6 +124,8 @@ if __name__ == '__main__':
                     
                     init = select_population(costs)
                     x0 = init[0]
+                    if len(init) < args.p:
+                        init = 'latinhypercube'
                     result, t = Optimise(costs, init, x0, (50, 100, 1e-6))
 
                     with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
