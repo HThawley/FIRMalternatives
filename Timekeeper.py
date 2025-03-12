@@ -7,81 +7,150 @@ Created on Tue Mar 11 09:02:17 2025
 
 from datetime import datetime as dt
 from datetime import timedelta as td
+from numba import njit, objmode, float64, int64
+from numba.experimental import jitclass
+import numpy as np
 import pandas as pd
 
-class Timekeeper:
-    def __init__(self, path=None):
-        self.path=path
-        self.starttime=dt.now()
-        
-    def Update(self, name, time):
-        if not hasattr(self, name):
-            setattr(self, name, (td(0), 0))
-        t, n = getattr(self, name)
-        setattr(self, name, (t + time, n+1))
-            
-    def Print(self, console=True, file=None):
-        names = [name for name in dir(self) if name[0] != '_' and name not in ( 'path', 'starttime', 'Update', 'Print')]
-        results = pd.DataFrame({name:getattr(self, name) for name in names}, index=['time', 'calls']).T
-        
-        if file is None: 
-            file = bool(self.path)
-        if file is True:
-            if self.path is None:
-                raise Exception("Need a path to print to")
-            else:
-                results.to_csv(self.path, index=True, header=True)
-        if console is True:
-            print("Timekeeper","="*50, sep='\n')
-            for row in results.iterrows():
-                print(f'Function: {row[0]}. Calls: {row[1]["calls"]}. Time: {row[1]["time"]}.')
+# import ctypes
+# import platform
+# if platform.system() == "Windows":
+#     from ctypes.util import find_msvcrt
+#     __LIB = find_msvcrt()
+#     if __LIB is None:
+#         __LIB = "msvcrt.dll"
+#     clock = ctypes.CDLL(__LIB).clock
+#     clock.argtypes = []
+#     @njit
+#     def cclock():
+#         return clock()/1000 #cpu-seconds
+ 
+# else:
+#     from ctypes.util import find_library
+#     __LIB = find_library("c")
+#     clock = ctypes.CDLL(__LIB).clock
+#     clock.argtypes = []
+#     @njit
+#     def cclock():
+#         return clock()/10_000 #cpu-seconds
 
+spec = [
+        ('functions', int64[:]), 
+        ('times', float64[:,:]),
+        ('calls', int64[:])
+        ]
+
+@jitclass(spec)
+class Timekeeper:
+    def __init__(self):
+        self.functions = np.zeros(1, dtype=np.int64)
+        self.times = np.zeros((1, 3), dtype=np.float64)
+        self.calls = np.zeros(1, dtype=np.int64)
+    def Update(self, index, time):
+        if len(self.functions) < index+1:
+            self.functions = np.arange(index+1, dtype=np.int64)
+        while len(self.times) < index+1:
+            self.times = np.vstack((self.times, np.zeros((1,3), np.float64)))
+        while len(self.calls) < index+1:
+            self.calls = np.concatenate((self.calls, np.zeros(1, np.int64)))
+        self.times[index] += time
+        self.calls[index] += 1
+        
+def Print_tk(tk, console=True, path=None, namedict={}):
+    if console is True:
+        print("Timekeeper","="*50, sep='\n')
+        if len(namedict) > 0:
+            for index in tk.functions:
+                print(f'Function: {namedict[index]}. Calls: {tk.calls[index]}. Time: {td(*tk.times[index])}.')
+        else:
+            for index in tk.functions:
+                print(f'Function: {index}. Calls: {tk.calls[index]}. Time: {td(*tk.times[index])}.')
+    if path is not None:
+        if len(namedict) > 0:
+            indices = [namedict[index] for index in tk.functions]
+        else: 
+            indices = tk.functions
+            
+        result = pd.DataFrame([], index=indices, 
+                              columns=['calls', 'time'])
+        for i, index in enumerate(indices):
+            result.loc[index,:] = tk.calls[i], td(*tk.times[i])
+        result.to_csv(path)
+
+@njit 
+def dt_now():
+    now = np.empty(7, np.int64)
+    with objmode():
+        n = dt.now()
+        now[:] = np.array([n.year, n.month, n.day, n.hour, n.minute, n.second, n.microsecond], np.int64)
+    return now
+
+@njit
+def time_delta(start, end):
+    delta = np.empty(3, np.float64)
+    with objmode():
+        d = dt(*end) - dt(*start)
+        delta[:] = np.array([d.days, d.seconds, d.microseconds], np.float64)
+    return delta
 
 def keeptime(timekeeper, name):
     def decorator(func):
         def wrapper(*fargs):
-            start=dt.now()
+            start=dt_now()
             ret=func(*fargs)
-            timekeeper.Update(name, dt.now()-start)
+            timekeeper.Update(name, time_delta(start, dt_now()))
             return ret
         return wrapper
     return decorator
 
-if __name__=='__main__':
+timekeeper = Timekeeper()
 
+if __name__=='__main__':
     from time import sleep
-    from numba import njit
-    tk=Timekeeper('test.csv')
+    tk=Timekeeper()
     
-    @keeptime(tk, 'func1')
-    def func1(args=None):
-        sleep(2)
-        return 
-    
-    @keeptime(tk, 'func2')
-    def func2(args=None):
-        sleep(3)
-        return
-    
-    @keeptime(tk, 'njit')
+    @keeptime(tk, 0)
     @njit
-    def func3(n=1_000_000):
+    def func1(n=1_000_000):
         x = list(range(n))
         y = [y for y in x] 
         return 
     
+    @keeptime(tk, 1)
+    @njit
+    def func2(n=1_000_000):
+        x = list(range(n))
+        y = [y for y in x] 
+        return 
+    
+    @keeptime(tk, 2)
+    @njit
+    def func3(n=3):
+        with objmode():
+            sleep(3)
+        return 
+ 
+    @keeptime(tk, 3)
+    def func_rec():
+        func1()
+        func3()
+         
+ 
+    @keeptime(tk,4)
+    def func4():
+        sleep(2)
+        return
+    
     func1()
-    func1()
-    func2()
-    func3(1)
-    tk.Print()
-    tk.path='test2.csv'
-    func1()
-    func2()
     func3()
-    tk.Print()
-    
-    
-        
+    func2()
+    func4()
+    func_rec()
+    namedict={0:'func1', 
+              1:'func2', 
+              2:'func3',
+              3:'func_rec',
+              4:'func4'}
+    Print_tk(tk, True, 'test.csv', namedict)
         
         
