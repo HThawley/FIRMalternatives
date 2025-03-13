@@ -1,7 +1,9 @@
 import numpy as np
 from numba import njit
+# from Input import keeptime, timekeeper, timekeeper_names
 
-@njit()
+# @keeptime('Reliabililty')
+@njit
 def Reliability(solution, flexible):
     solution.GNetload = solution.MLoad.sum(axis=1) - solution.MPV.sum(axis=1) - solution.MOnsW.sum(axis=1) - flexible - solution.CBaseload.sum()
 

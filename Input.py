@@ -12,12 +12,16 @@ parser.add_argument('-r', default=0.3, type=float, required=False, help='recombi
 
 parser.add_argument('-s', default=21, type=int, required=False, help='11, 12, 13, ...')
 
-parser.add_argument('-ver', default=1, type=int, required=False, help='Boolean - print progress to console')
+parser.add_argument('-ver', default=0, type=int, required=False, help='Boolean - print progress to console')
 
 args = parser.parse_args()
 scenario = args.s
 
+from Timekeeper import keeptime, timekeeper, timekeeper_names
+
 from Costs import Raw_Costs
+from Network import Transmission
+from Fill import Fill
 
 Nodel = np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])
 PVl =   np.array(['NSW']*7 + ['FNQ']*1 + ['QLD']*2 + ['FNQ']*3 + ['SA']*6 + ['TAS']*0 + ['VIC']*1 + ['WA']*1 + ['NT']*1)
@@ -110,10 +114,6 @@ ub = np.array([32.] * pzones + [32.]  * wzones + [32.] * nodes + nodes*[32.] + [
 #%%
 
 costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask).CostFactors()
-
-# from Simulation import Reliability
-from Network import Transmission
-from Fill import Fill
 
 # Specify the types for jitclass
 solution_spec = [
@@ -232,7 +232,7 @@ class Solution:
                 for i in range(self.intervals):
                     self.CDC[j] = np.maximum(TDC[i, j], self.CDC[j])
         else: 
-            self.TDC = np.zeros(len(network_mask), np.float64)
+            TDC = self.TDC = np.zeros((1, len(network_mask)), np.float64)
             self.CDC = np.zeros(len(network_mask), np.float64)
             
         # Penatlies += max(0, CDC[6] - CDC6max) 

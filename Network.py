@@ -1,7 +1,9 @@
 import numpy as np
 from numba import njit
+# from Input import keeptime, timekeeper, timekeeper_names
 
-@njit()
+# @keeptime('Transmission')
+@njit
 def Transmission(solution):
     solution.MHydro = np.atleast_2d(solution.GHydro).T * solution.CHydro / solution.CHydro.sum()
     solution.MBio   = np.atleast_2d(solution.GBio).T   * solution.CBio   / solution.CBio.sum()

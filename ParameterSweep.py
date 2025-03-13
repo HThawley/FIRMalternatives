@@ -1,12 +1,13 @@
 import numpy as np 
 import pandas as pd
+from numba import njit
 from csv import writer
 
 
 from Input import * 
 from Costs import Raw_Costs 
 from Optimisation import Optimise
-
+# from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 
 
 ## Parameters to sweep 
@@ -25,6 +26,7 @@ carbon_price = (0, 35, 70, 140)
 
 costs = raw_costs.CostFactors()
 
+@keeptime
 def select_population(costs):
     history = pd.read_csv(f'Results/History{scenario}.csv', header=None, 
                           usecols=[0,1,2,3,4]+list(range(7, 14+len(lb))))
@@ -49,6 +51,7 @@ def calculate_distances(history, centroid):
     distances = ((history - centroid)**2).sum(axis=1)**(1/2)
     return distances
 
+@keeptime
 @njit
 def calculate_costs(history, costs):
     Lcoes = np.stack((
@@ -70,11 +73,9 @@ def calculate_costs(history, costs):
     Lcoes += history[:, 1]
     return Lcoes
 
+
 if __name__ == '__main__':
     
-    # with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
-    #     writer(file)
-            
     start = True
     args.ml = 0.5
     args.mu = 1.5
@@ -93,6 +94,8 @@ if __name__ == '__main__':
                     costs = raw_costs.CostFactors()
             
                     if start:
+                        with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
+                            writer(file)
                         init = 'latinhypercube'
                         x0=None
                         start=False
@@ -130,3 +133,4 @@ if __name__ == '__main__':
 
                     with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
                         writer(csvfile).writerow([result.fun] + list(result.x))
+

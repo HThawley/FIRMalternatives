@@ -7,37 +7,18 @@ Created on Tue Mar 11 09:02:17 2025
 
 from datetime import datetime as dt
 from datetime import timedelta as td
-from numba import njit, objmode, float64, int64
+from numba import njit, objmode, float64, int64, boolean
 from numba.experimental import jitclass
+from numba.core.registry import CPUDispatcher
 import numpy as np
 import pandas as pd
 
-# import ctypes
-# import platform
-# if platform.system() == "Windows":
-#     from ctypes.util import find_msvcrt
-#     __LIB = find_msvcrt()
-#     if __LIB is None:
-#         __LIB = "msvcrt.dll"
-#     clock = ctypes.CDLL(__LIB).clock
-#     clock.argtypes = []
-#     @njit
-#     def cclock():
-#         return clock()/1000 #cpu-seconds
- 
-# else:
-#     from ctypes.util import find_library
-#     __LIB = find_library("c")
-#     clock = ctypes.CDLL(__LIB).clock
-#     clock.argtypes = []
-#     @njit
-#     def cclock():
-#         return clock()/10_000 #cpu-seconds
 
 spec = [
         ('functions', int64[:]), 
         ('times', float64[:,:]),
-        ('calls', int64[:])
+        ('calls', int64[:]),
+        ('_empty', boolean),
         ]
 
 @jitclass(spec)
@@ -46,30 +27,31 @@ class Timekeeper:
         self.functions = np.zeros(1, dtype=np.int64)
         self.times = np.zeros((1, 3), dtype=np.float64)
         self.calls = np.zeros(1, dtype=np.int64)
+        self._empty=True
+    def Add_func(self):
+        if self._empty is True:
+            self._empty = False
+            return 0
+        self.functions = np.arange(len(self.functions)+1)
+        self.times = np.vstack((self.times, np.zeros((1,3), np.float64)))
+        self.calls = np.concatenate((self.calls, np.zeros(1, np.int64)))
+        return len(self.functions) - 1 
     def Update(self, index, time):
-        if len(self.functions) < index+1:
-            self.functions = np.arange(index+1, dtype=np.int64)
-        while len(self.times) < index+1:
-            self.times = np.vstack((self.times, np.zeros((1,3), np.float64)))
-        while len(self.calls) < index+1:
-            self.calls = np.concatenate((self.calls, np.zeros(1, np.int64)))
         self.times[index] += time
         self.calls[index] += 1
-        
-def Print_tk(tk, console=True, path=None, namedict={}):
+    
+def PrintTimekeeper(console=True, path=None):
+    tk = globals()['timekeeper']
+    names = globals()['timekeeper_names']
     if console is True:
         print("Timekeeper","="*50, sep='\n')
-        if len(namedict) > 0:
-            for index in tk.functions:
-                print(f'Function: {namedict[index]}. Calls: {tk.calls[index]}. Time: {td(*tk.times[index])}.')
-        else:
-            for index in tk.functions:
-                print(f'Function: {index}. Calls: {tk.calls[index]}. Time: {td(*tk.times[index])}.')
+        lens = [len(names[i]) for i in tk.functions]
+        mlen=max(lens)
+        for i in tk.functions:
+            print(f'Function: {names[i]} {"\t"*(1+(mlen-lens[i])//4)}|Calls: {tk.calls[i]}. \t|Time: {td(*tk.times[i])}')
+        print("="*50)
     if path is not None:
-        if len(namedict) > 0:
-            indices = [namedict[index] for index in tk.functions]
-        else: 
-            indices = tk.functions
+        indices = [names[index] for index in tk.functions]
             
         result = pd.DataFrame([], index=indices, 
                               columns=['calls', 'time'])
@@ -93,64 +75,90 @@ def time_delta(start, end):
         delta[:] = np.array([d.days, d.seconds, d.microseconds], np.float64)
     return delta
 
-def keeptime(timekeeper, name):
+@njit 
+def update_timekeeper(timekeeper, index, time):
+    timekeeper.times[index] += time
+    timekeeper.calls[index] += 1
+    # timekeeper.Update(index, delta)
+
+def keeptime(name=None):
     def decorator(func):
-        def wrapper(*fargs):
-            start=dt_now()
-            ret=func(*fargs)
-            timekeeper.Update(name, time_delta(start, dt_now()))
-            return ret
+        try:
+            index = globals()['timekeeper'].Add_func()
+        except KeyError:
+            global timekeeper
+            timekeeper = Timekeeper()
+            index = globals()['timekeeper'].Add_func()
+        if name is not None:
+            try:
+                globals()['timekeeper_names'][index]=name
+            except KeyError:
+                global timekeeper_names
+                timekeeper_names = {}
+                globals()['timekeeper_names'][index]=name
+        
+        if isinstance(func, CPUDispatcher):
+            @njit
+            def wrapper(*args):
+                start=dt_now()
+                ret = func(*args)
+                with objmode():
+                    globals()['timekeeper'].Update(index, time_delta(start, dt_now()))
+                return ret
+        else:
+            def wrapper(*args):
+                start=dt_now()
+                ret=func(*args)
+                globals()['timekeeper'].Update(index, time_delta(start, dt_now()))
+                return ret
         return wrapper
     return decorator
 
-timekeeper = Timekeeper()
+timekeeper=Timekeeper()
+timekeeper_names={}
 
 if __name__=='__main__':
     from time import sleep
-    tk=Timekeeper()
     
-    @keeptime(tk, 0)
+    @keeptime
     @njit
     def func1(n=1_000_000):
         x = list(range(n))
         y = [y for y in x] 
-        return 
+        return y[0]
     
-    @keeptime(tk, 1)
+    @keeptime
     @njit
     def func2(n=1_000_000):
         x = list(range(n))
         y = [y for y in x] 
-        return 
+        return y[0]
     
-    @keeptime(tk, 2)
+    @keeptime
     @njit
     def func3(n=3):
         with objmode():
             sleep(3)
-        return 
+        return 0
  
-    @keeptime(tk, 3)
+    @keeptime
+    @njit
     def func_rec():
         func1()
         func3()
          
  
-    @keeptime(tk,4)
+    @keeptime
     def func4():
         sleep(2)
         return
     
     func1()
+    func1()
     func3()
     func2()
     func4()
     func_rec()
-    namedict={0:'func1', 
-              1:'func2', 
-              2:'func3',
-              3:'func_rec',
-              4:'func4'}
-    Print_tk(tk, True, 'test.csv', namedict)
+    PrintTimekeeper(True, 'test.csv')#, namedict)
         
         

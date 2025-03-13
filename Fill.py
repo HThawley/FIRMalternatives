@@ -2,13 +2,14 @@ from numba import njit
 import numpy as np
 from Simulation import Reliability 
 
+# from Input import keeptime, timekeeper,timekeeper_names
 
-#%%
-@njit()
+# @keeptime('Fill')
+@njit
 def Fill(solution):
     ### maximum dispatch of gas
     solution.GGas = solution.CGas.sum() * np.ones(solution.intervals, dtype=np.float64)
-    Reliability(solution, flexible=solution.GGas)
+    Reliability(solution, solution.GGas)
     
     ### dispatch Bio to fill the gaps
     flex_power   = np.zeros(solution.intervals, np.float64)
@@ -43,7 +44,7 @@ def Fill(solution):
     solution.GBio   = flex_power + flex_trickle
     
     ### Dispatch Hydro to fill gaps
-    Reliability(solution, flexible=solution.GBio+solution.GGas)
+    Reliability(solution, solution.GBio+solution.GGas)
     flex_power   = np.zeros(solution.intervals, np.float64)
     flex_trickle = np.zeros(solution.intervals, np.float64)
     
@@ -62,7 +63,7 @@ def Fill(solution):
             flex_trickle[t] = flex
     
     ## This trim of flex does not make much difference on result
-    # Reliability(solution, flexible=flex_power+flex_trickle+solution.GBio+solution.GGas)
+    # Reliability(solution, flex_power+flex_trickle+solution.GBio+solution.GGas)
     # flex_trickle = np.maximum(flex_trickle-solution.GSpillage, 0)
     
     ### enforce annual energy constraint
@@ -78,7 +79,7 @@ def Fill(solution):
     solution.GHydro = flex_power + flex_trickle
     
     ### reduce Gas usage to the minimum necessary amount
-    Reliability(solution, flexible=solution.GBio+solution.GHydro)
+    Reliability(solution, solution.GBio+solution.GHydro)
     flex_power = np.zeros(solution.intervals, np.float64)
     fill, flex_cap = 0, solution.CGas.sum()
     for t in range(solution.intervals-1, -1, -1):
@@ -93,7 +94,7 @@ def Fill(solution):
             flex = min(fill, flex_cap - flex_power[t], solution.GCPHP - solution.GCharge[t] + solution.GDischarge[t])
             fill -= flex
             flex_power[t] += flex
-    Reliability(solution, flexible=solution.GHydro+solution.GBio+flex_power)
+    Reliability(solution, solution.GHydro+solution.GBio+flex_power)
     flex_power = np.maximum(flex_power-solution.GSpillage, 0)
     
     ### apportion as much gas usage to hydro and bio as possible
@@ -117,7 +118,7 @@ def Fill(solution):
     
     solution.GGas = flex_power
     
-    return Reliability(solution, flexible=solution.GBio+solution.GGas+solution.GHydro)
+    return Reliability(solution, solution.GBio+solution.GGas+solution.GHydro)
 
 
 if __name__=='__main__':
