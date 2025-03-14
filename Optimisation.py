@@ -3,68 +3,16 @@
 # Licensed under the MIT Licence
 # Correspondence: bin.lu@anu.edu.au
 
-import os
-import shutil
 import numpy as np
 from csv import writer
 from numba import njit,prange
 from scipy.optimize import differential_evolution
-from scipy._lib._util import check_random_state
+# from scipy._lib._util import check_random_state
 from datetime import datetime as dt
 
-from Timekeeper import PrintTimekeeper
 from Input import *
-
-class FilePrinter:
-    def __init__(self, file_name:str, save_freq:int):
-        self.file_name=file_name
-        self.temp_file_path = '-temp.'.join(self.file_name.split('.'))
-        self.save_freq=save_freq
-        self.callno = 0
-        self.array = None
-        
-    @keeptime('Manage file print')
-    def __call__(self, arr):
-        self.callno+=1     
-        if self.array is None:
-            self.array=arr
-        else: 
-            self.array = np.concatenate((self.array, arr), axis=0)
-        if self.callno % self.save_freq == 0:
-            self._flush()
-    
-    @keeptime('Print to file')
-    def _print(self):
-        with open(self.temp_file_path, 'a', newline='') as file:
-            writer(file).writerows(self.array) 
-            file.close()
-    
-    @keeptime('Copying files')
-    def _copyfile(self, forward=True):
-        if forward is True:
-            try:
-                shutil.copyfile(self.file_name, self.temp_file_path)
-            except FileNotFoundError as e:
-                if self.callno == self.save_freq:
-                    pass
-                else: 
-                    raise e 
-                    
-        else:
-           shutil.copyfile(self.temp_file_path, self.file_name)
-           os.remove(self.temp_file_path)
-           
-    def _flush(self):
-        print('\rWriting out to file. Do not interrupt', end='\r')
-        self._copyfile(True)
-        self._print()
-        self._copyfile(False)
-        print('\r'+' '*40, end='\r')
-        self.array=None
-    
-    def Terminate(self):
-        if self.array is not None:
-            self._flush()
+from Timekeeper import PrintTimekeeper
+from Fileprinter import Fileprinter
 
 @keeptime('Objective')
 def ObjectiveWrapper(xs, costs, fileprinter):
@@ -135,7 +83,7 @@ def Optimise(costs, init='latinhypercube', x0=None, callback_args=()):
     starttime = dt.now()
     print("Optimisation starts at", starttime)
     
-    fileprinter = FilePrinter(f'Results/History{scenario}.csv', 1)
+    fileprinter = Fileprinter(f'Results/History{scenario}.csv', 1)
     
     result = differential_evolution(
         func=ObjectiveWrapper, 
@@ -168,7 +116,7 @@ if __name__=='__main__':
     
     result, time = Optimise(costs)
     
-    PrintTimekeeper()
+    PrintTimekeeper(f'Timekeep-opt-{scenario}.csv')
     raise KeyboardInterrupt
     
     with open('Results/Optimisation_resultx{}.csv'.format(scenario), 'w', newline='') as csvfile:

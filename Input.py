@@ -13,6 +13,7 @@ parser.add_argument('-r', default=0.3, type=float, required=False, help='recombi
 parser.add_argument('-s', default=21, type=int, required=False, help='11, 12, 13, ...')
 
 parser.add_argument('-ver', default=0, type=int, required=False, help='Boolean - print progress to console')
+parser.add_argument('-res', default=1, type=int, required=False, help='Boolean - whether to try resume')
 
 args = parser.parse_args()
 scenario = args.s
@@ -279,8 +280,7 @@ class Solution:
         self.LCOBL = self.LCOE - self.LCOG - self.LCOBS - self.LCOBT
         self.Capex = sum([cost[i] for i in [0,1,2,3,10,11,14,15,18]])/self.energyloss
         self.Opex = sum([cost[i] for i in [4,5,6,7,8,9,12,13,16,17,19,20]])/self.energyloss
-        
-
+  
 if __name__=='__main__':
     x = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',', dtype=float)
     # x = np.random.rand(len(lb))*(ub-lb)+lb
@@ -302,3 +302,4 @@ if __name__=='__main__':
     
     test(costs)
         
+

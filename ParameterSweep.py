@@ -7,7 +7,8 @@ from csv import writer
 from Input import * 
 from Costs import Raw_Costs 
 from Optimisation import Optimise
-# from Timekeeper import keeptime, PrintTimekeeper, timekeeper
+from Timekeeper import keeptime, PrintTimekeeper, timekeeper
+from Fileprinter import Fileprinter
 
 
 ## Parameters to sweep 
@@ -26,17 +27,35 @@ carbon_price = (0, 35, 70, 140)
 
 costs = raw_costs.CostFactors()
 
-@keeptime
+@keeptime('Select population')
 def select_population(costs):
-    history = pd.read_csv(f'Results/History{scenario}.csv', header=None, 
-                          usecols=[0,1,2,3,4]+list(range(7, 14+len(lb))))
-    history = history.drop_duplicates(subset=range(12, history.shape[1])).to_numpy()
+    history = read_history()
+    history = deduplicate_history(history, commit=True, precision=4)
+    history = history.to_numpy()
     Lcoes = calculate_costs(history, costs)
     sort_array = np.argsort(Lcoes)
     noptimaln = min(len(Lcoes), args.p)
-    history = history[sort_array[:noptimaln], 12:]
-
+    history = history[sort_array[:noptimaln], 14:]
     return history
+
+@keeptime('Reading His.y')
+def read_history():
+    history = pd.read_csv(f'Results/History{scenario}.csv', header=None)
+    return history
+
+@keeptime('Dedup-ing History')
+def deduplicate_history(history, commit=False, precision=None, subset=None):
+    if precision is None:
+        history = history.drop_duplicates(subset=subset)
+    else: 
+        history = history[~history.round(precision).duplicated(subset=subset)]
+    if commit is True:
+        write_history(history)
+    return history
+        
+@keeptime('Write dedup-ed his.y')
+def write_history(history):
+    history.to_csv(f'Results/History{scenario}.csv', header=False, index=False)
 
 @njit
 def normalise(arr, lb, ub):
@@ -51,16 +70,16 @@ def calculate_distances(history, centroid):
     distances = ((history - centroid)**2).sum(axis=1)**(1/2)
     return distances
 
-@keeptime
+@keeptime('Cost calcs')
 @njit
 def calculate_costs(history, costs):
     Lcoes = np.stack((
-        (history[:,5:12] * costs.hvdc.sum(axis=0)).sum(axis=1), # hvdc capex and fom 
-        history[:, 12:      12+pidx].sum(axis=1) * (costs.pv[0]   + costs.pv[1]   + costs.ac.sum()), # pv capex and fom
-        history[:, 12+pidx: 12+widx].sum(axis=1) * (costs.onsw[0] + costs.onsw[1] + costs.ac.sum()), # wind capex and fom
-        history[:, 12+widx: 12+gidx].sum(axis=1) * (costs.gas[0]  + costs.gas[1]  + costs.ac.sum()), # gas capex and fom
-        history[:, 12+gidx: 12+sidx].sum(axis=1) * (costs.phes[0] + costs.phes[2] ), # phes capex (power) and fom
-        history[:, 12+sidx] * costs.phes[1], # phes capex (energy)
+        (history[:,7:14] * costs.hvdc.sum(axis=0)).sum(axis=1), # hvdc capex and fom 
+        history[:, 14:      14+pidx].sum(axis=1) * (costs.pv[0]   + costs.pv[1]   + costs.ac.sum()), # pv capex and fom
+        history[:, 14+pidx: 14+widx].sum(axis=1) * (costs.onsw[0] + costs.onsw[1] + costs.ac.sum()), # wind capex and fom
+        history[:, 14+widx: 14+gidx].sum(axis=1) * (costs.gas[0]  + costs.gas[1]  + costs.ac.sum()), # gas capex and fom
+        history[:, 14+gidx: 14+sidx].sum(axis=1) * (costs.phes[0] + costs.phes[2] ), # phes capex (power) and fom
+        history[:, 14+sidx] * costs.phes[1], # phes capex (energy)
         
         history[:, 2] * costs.gas[2], # gas vom, fuel, and carbon
         history[:, 3] * costs.hydro[2], # hydro vom
@@ -75,62 +94,43 @@ def calculate_costs(history, costs):
 
 
 if __name__ == '__main__':
+    fileprinter = Fileprinter(f'Results/Paramsweep{scenario}.csv', 1, [
+        'carbon price', 'gas fuel', 'pv capex', 'wind capex', 'LCOE'] + list(range(len(lb))))
     
-    start = True
-    args.ml = 0.5
-    args.mu = 1.5
-    args.r = 0.4
-    for s, carbon_step in enumerate(carbon_price):
-        raw_costs.UpdateCarbonPrice(carbon_step)
-        costs = raw_costs.CostFactors()
-        for r, gas_step in enumerate(gas_fuel):
-            raw_costs.gas[3] = gas_step
+    start = not bool(args.res)
+    
+    hyperparameters = (
+        (0.5, 1.5, 0.4), 
+        (0.25, 0.5, 0.15))
+    
+    for hp in hyperparameters:
+        args.ml, args.mu, args.r = hp
+        for p, carbon_step in enumerate(carbon_price):
+            raw_costs.UpdateCarbonPrice(carbon_step)
             costs = raw_costs.CostFactors()
-            for p, pv_step in enumerate(pv_capex):
-                raw_costs.pv[0] = pv_step
+            for q, gas_step in enumerate(gas_fuel):
+                raw_costs.gas[3] = gas_step
                 costs = raw_costs.CostFactors()
-                for q, wind_step in enumerate(wind_capex):
-                    raw_costs.onsw[0] = wind_step
+                for r, pv_step in enumerate(pv_capex):
+                    raw_costs.pv[0] = pv_step
                     costs = raw_costs.CostFactors()
-            
-                    if start:
-                        with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
-                            writer(file)
-                        init = 'latinhypercube'
-                        x0=None
-                        start=False
-                    else:
-                        init = select_population(costs)
-                        x0 = init[0]
-                        if len(init) < args.p:
+                    for s, wind_step in enumerate(wind_capex):
+                        raw_costs.onsw[0] = wind_step
+                        costs = raw_costs.CostFactors()
+                
+                        if start:
+                            with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
+                                writer(file)
                             init = 'latinhypercube'
-                    result, t = Optimise(costs, init, x0, (25, 50, 1))
-                    
-                    with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
-                        writer(csvfile).writerow([result.fun] + list(result.x))
-
-    args.ml = 0.25
-    args.mu = 0.5
-    args.r = 0.15
-    for s, carbon_step in enumerate(carbon_price):
-        raw_costs.UpdateCarbonPrice(carbon_step)
-        costs = raw_costs.CostFactors()
-        for r, gas_step in enumerate(gas_fuel):
-            raw_costs.gas[3] = gas_step
-            costs = raw_costs.CostFactors()
-            for p, pv_step in enumerate(pv_capex):
-                raw_costs.pv[0] = pv_step
-                costs = raw_costs.CostFactors()
-                for q, wind_step in enumerate(wind_capex):
-                    raw_costs.onsw[0] = wind_step
-                    costs = raw_costs.CostFactors()
-                    
-                    init = select_population(costs)
-                    x0 = init[0]
-                    if len(init) < args.p:
-                        init = 'latinhypercube'
-                    result, t = Optimise(costs, init, x0, (50, 100, 1e-6))
-
-                    with open(f'Results/Opt_result{scenario}-{p}-{q}-{r}-{s}.csv', 'w', newline='') as csvfile:
-                        writer(csvfile).writerow([result.fun] + list(result.x))
+                            x0=None
+                            start=False
+                        else:
+                            init = select_population(costs)
+                            x0 = init[0]
+                            if len(init) < args.p:
+                                init = 'latinhypercube'
+                        print(init, init.shape)
+                        result, t = Optimise(costs, init, x0, (25, 50, 1))
+                        fileprinter([[p,q,r,s,result.fun]+list(result.x)])
+    PrintTimekeeper(f'Timekeep-ps-{scenario}.csv')
 

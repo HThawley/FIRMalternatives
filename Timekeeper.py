@@ -40,7 +40,7 @@ class Timekeeper:
         self.times[index] += time
         self.calls[index] += 1
     
-def PrintTimekeeper(console=True, path=None):
+def PrintTimekeeper(path=None, console=True,):
     tk = globals()['timekeeper']
     names = globals()['timekeeper_names']
     if console is True:
@@ -106,9 +106,9 @@ def keeptime(name=None):
                     globals()['timekeeper'].Update(index, time_delta(start, dt_now()))
                 return ret
         else:
-            def wrapper(*args):
+            def wrapper(*args, **kwargs):
                 start=dt_now()
-                ret=func(*args)
+                ret=func(*args, **kwargs)
                 globals()['timekeeper'].Update(index, time_delta(start, dt_now()))
                 return ret
         return wrapper
