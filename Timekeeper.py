@@ -48,7 +48,7 @@ def PrintTimekeeper(path=None, console=True,):
         lens = [len(names[i]) for i in tk.functions]
         mlen=max(lens)
         for i in tk.functions:
-            print(f'Function: {names[i]} {"\t"*(1+(mlen-lens[i])//4)}|Calls: {tk.calls[i]}. \t|Time: {td(*tk.times[i])}')
+            print(f'Function: {names[i]}{" "*(1+(mlen-lens[i]))}\t|Calls: {tk.calls[i]}. \t|Time: {td(*tk.times[i])}')
         print("="*50)
     if path is not None:
         indices = [names[index] for index in tk.functions]
@@ -120,37 +120,34 @@ timekeeper_names={}
 if __name__=='__main__':
     from time import sleep
     
-    @keeptime
+    @keeptime('func1')
     @njit
     def func1(n=1_000_000):
         x = list(range(n))
         y = [y for y in x] 
-        return y[0]
     
-    @keeptime
+    @keeptime('func2')
     @njit
     def func2(n=1_000_000):
         x = list(range(n))
         y = [y for y in x] 
-        return y[0]
     
-    @keeptime
+    @keeptime('func3')
     @njit
     def func3(n=3):
         with objmode():
-            sleep(3)
-        return 0
+            sleep(0.3)
  
-    @keeptime
+    @keeptime('func_rec')
     @njit
     def func_rec():
         func1()
         func3()
          
  
-    @keeptime
+    @keeptime('func4')
     def func4():
-        sleep(2)
+        sleep(0.2)
         return
     
     func1()
@@ -159,6 +156,6 @@ if __name__=='__main__':
     func2()
     func4()
     func_rec()
-    PrintTimekeeper(True, 'test.csv')#, namedict)
+    PrintTimekeeper()#
         
         
