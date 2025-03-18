@@ -19,9 +19,9 @@ costConstraint=1.02
 
 os.chdir('\\'.join(os.getcwd().split('\\')[:-1]))
 
-from Input import TSWind, TSPV, nodes, scenario, pidx, widx, sidx
+from Input import TSOnsW, TSPV, nodes, scenario, pidx, widx, sidx
 
-file =fr"Results\History{scenario}-resolved.csv"
+file =fr"Results\DerlabResults\History{scenario}-resolved.csv"
 data = pd.read_csv(file, header=None)
 # pidx, widx, sidx, headers = gu.zoneTypeIndx(scenario)
 
@@ -194,7 +194,7 @@ def box_and_whisker_cfs(data, axs=None, xscale=1.5, yscale=0.5):
     
     axs[1].bar(
         pvs+ws+ss, 
-        np.concatenate((TSPV.mean(axis=0), TSWind.mean(axis=0), np.zeros(len(ss)))),
+        np.concatenate((TSPV.mean(axis=0), TSOnsW.mean(axis=0), np.zeros(len(ss)))),
         facecolor = ([sns.color_palette()[1]]*len(pvs) + 
                      [sns.color_palette()[0]]*len(ws) + 
                      [sns.color_palette()[2]]*len(ss))

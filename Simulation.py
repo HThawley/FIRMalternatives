@@ -8,23 +8,20 @@ from numba import njit
 
 @njit()
 def Reliability(solution, flexible):
-    Netload = (solution.MLoad.sum(axis=1) - solution.GPV.sum(axis=1) - solution.GOnsW.sum(axis=1) -
-               solution.GBaseload.sum(axis=1) - flexible)
+    solution.GNetload = (solution.MLoad.sum(axis=1) - solution.MPV.sum(axis=1) - solution.MOnsW.sum(axis=1) -
+               solution.MBaseload.sum(axis=1) - flexible)
 
-    Pcapacity = solution.CPHP.sum() * 1000 # S-CPHP(j), GW to MW
-    Scapacity = solution.CPHS * 1000 # S-CPHS(j), GWh to MWh
-
-    solution.Discharge = np.zeros(solution.intervals)
-    solution.Charge = np.zeros(solution.intervals)
-    solution.Storage = np.zeros(solution.intervals)
-    solution.Storage[-1] = 0.5*Scapacity
+    solution.GDischarge = np.zeros(solution.intervals)
+    solution.GCharge = np.zeros(solution.intervals)
+    solution.GStorage = np.zeros(solution.intervals)
+    solution.GStorage[-1] = 0.5*solution.CPHS
     for t in range(solution.intervals):
-        solution.Discharge[t] = np.minimum(np.minimum(np.maximum(0, Netload[t]), Pcapacity), solution.Storage[t-1] / solution.resolution)
-        solution.Charge[t] = np.minimum(np.minimum(-1 * np.minimum(0, Netload[t]), Pcapacity), (Scapacity - solution.Storage[t-1]) / solution.efficiency / solution.resolution)
-        solution.Storage[t] = solution.Storage[t-1] - solution.Discharge[t] * solution.resolution + solution.Charge[t] * solution.resolution * solution.efficiency
+        solution.GDischarge[t] = np.minimum(np.minimum(np.maximum(0, solution.GNetload[t]), solution.GCPHP), solution.GStorage[t-1] / solution.resolution)
+        solution.GCharge[t] = np.minimum(np.minimum(-1 * np.minimum(0, solution.GNetload[t]), solution.GCPHP), (solution.CPHS - solution.GStorage[t-1]) / solution.efficiency / solution.resolution)
+        solution.GStorage[t] = solution.GStorage[t-1] - solution.GDischarge[t] * solution.resolution + solution.GCharge[t] * solution.resolution * solution.efficiency
 
-    solution.Deficit = np.maximum(Netload - solution.Discharge, 0)
-    solution.Spillage = - np.minimum(Netload + solution.Charge, 0)
-    solution.flexible = flexible
+    solution.GDeficit = np.maximum(solution.GNetload - solution.GDischarge, 0)
+    solution.GSpillage = - np.minimum(solution.GNetload + solution.GCharge, 0)
+    solution.GFlexible = flexible
     
-    return solution.Deficit
+    return solution.GDeficit

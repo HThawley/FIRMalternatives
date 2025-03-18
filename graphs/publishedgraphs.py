@@ -104,48 +104,48 @@ IRENAdata['source'] = IRENAdata['source'].str.replace('Solar PV', 'Global Solar 
 Ausdata['source'] = Ausdata['source'].str.replace('Wind', 'Aus. Wind')
 Ausdata['source'] = Ausdata['source'].str.replace('Solar PV', 'Aus. Solar PV')
 
-Ausdata = pd.read_csv(r"C:\Users\u6942852\OneDrive - Australian National University\Desktop\CleanEnergyCouncil.csv", 
-                      thousands=',', decimal='.', quotechar='"')
-Ausdata[['Solar', 'Wind']] /= 1000
-Ausdata=Ausdata.rename(columns={'Solar':'Aus. Solar PV', 'Wind':'Aus. Wind'})
-Ausdata=Ausdata.melt(
-    id_vars='Year', 
-    value_vars=['Aus. Solar PV', 'Aus. Wind'], 
-    var_name='source', 
-    value_name='Australia Capacity (GW)')
+# Ausdata = pd.read_csv(r"C:\Users\u6942852\OneDrive - Australian National University\Desktop\CleanEnergyCouncil.csv", 
+#                       thousands=',', decimal='.', quotechar='"')
+# Ausdata[['Solar', 'Wind']] /= 1000
+# Ausdata=Ausdata.rename(columns={'Solar':'Aus. Solar PV', 'Wind':'Aus. Wind'})
+# Ausdata=Ausdata.melt(
+#     id_vars='Year', 
+#     value_vars=['Aus. Solar PV', 'Aus. Wind'], 
+#     var_name='source', 
+#     value_name='Australia Capacity (GW)')
 
-fig, axs = plt.subplots(2, figsize=(10,3), dpi=1800, sharex=True)
-sns.lineplot(
-    IRENAdata[IRENAdata['Year']>=2013],
-    x='Year', 
-    y='Global Capacity (GW)', 
-    hue='source', 
-    hue_order=['Global Wind','Global Solar PV'],
-    ax=axs[0],
-    )
+# fig, axs = plt.subplots(2, figsize=(10,3), dpi=1800, sharex=True)
+# sns.lineplot(
+#     IRENAdata[IRENAdata['Year']>=2013],
+#     x='Year', 
+#     y='Global Capacity (GW)', 
+#     hue='source', 
+#     hue_order=['Global Wind','Global Solar PV'],
+#     ax=axs[0],
+#     )
 
-sns.lineplot(
-    Ausdata[Ausdata['Year']>=2013],
-    x='Year', 
-    y='Australia Capacity (GW)', 
-    hue='source', 
-    hue_order=['Aus. Wind','Aus. Solar PV'],
-    ax=axs[1],
-    palette='dark',
-    )
+# sns.lineplot(
+#     Ausdata[Ausdata['Year']>=2013],
+#     x='Year', 
+#     y='Australia Capacity (GW)', 
+#     hue='source', 
+#     hue_order=['Aus. Wind','Aus. Solar PV'],
+#     ax=axs[1],
+#     palette='dark',
+#     )
 
-axs[0].set_title('Global net new capacity by year (2013-2023)$^2$')
-axs[1].set_xticks(list(range(2013, 2024, 2)))
-axs[0].set_ylabel('Global New\nCapacity (GW)', fontsize=10)
-axs[0].set_yticks(list(range(0, 500, 100)))
-axs[1].set_ylabel('Australia New\nCapacity (GW)', fontsize=10)
-axs[1].set_yticks(list(range(6)))
-plt.show()
+# axs[0].set_title('Global net new capacity by year (2013-2023)$^2$')
+# axs[1].set_xticks(list(range(2013, 2024, 2)))
+# axs[0].set_ylabel('Global New\nCapacity (GW)', fontsize=10)
+# axs[0].set_yticks(list(range(0, 500, 100)))
+# axs[1].set_ylabel('Australia New\nCapacity (GW)', fontsize=10)
+# axs[1].set_yticks(list(range(6)))
+# plt.show()
 
 #%%
 from Input import *
 
-file =fr"Results\History{scenario}-resolved.csv"
+file =fr"Results\DerlabResults\History{scenario}-resolved.csv"
 data = pd.read_csv(file, header=None)
 
 solarCols=[f'pv-{n}' for n in coverage]

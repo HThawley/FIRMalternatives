@@ -35,9 +35,9 @@ elif mp.lower() == 'jit':
 else:
     raise ValueError
     
-z = (pzones+wzones+nodes)
+z = (pzones+wzones+phnodes)
 first_pass = np.array([10.1]*z + [500.1])
-ultralow_res = np.array([1.1]*z + [60]) 
+ultralow_res = np.array([2.1]*z + [120]) 
 low_res = np.array([0.1]*z + [10.0]) # 100 MW, 10 GWh
 medium_res = np.array([0.01]*z + [1.0]) # 10 MW, 1 GWh
 high_res = np.array([0.001]*z + [0.01]) # 1 MW, 100 MWh
@@ -58,7 +58,7 @@ if __name__ == '__main__':
         f_args=(costs,),
         printfile='Results/History{}'.format(scenario) if args.cb == 2 else '',
         vectorizable=False,
-        max_dims= 8,
+        max_dims=args.d,
         disp = bool(args.ver),
         restart='Results/History{}'.format(scenario) if args.resume == 1 else '',
         nextras = 5,
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     print('step 3')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[1],
-                  'near_optimal':1.01, 
+                  'near_optimal':1.05, 
                   'max_pop':10000,
                   })
     print('step 4')
@@ -94,12 +94,12 @@ if __name__ == '__main__':
     print('step 5')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[1],
-                  'near_optimal':1.01, 
+                  'near_optimal':1.05, 
                   'max_pop':10000,
                   })
-    print('polish')
-    problem.Polish({'max_res':res[1], 
-                    'near_optimal':1.03})
+    # print('polish')
+    # problem.Polish({'max_res':res[1], 
+    #                 'near_optimal':1.05})
     
     result = problem.ReturnElite()
 
@@ -110,4 +110,4 @@ if __name__ == '__main__':
     print(result.x, result.f)
 
     from Fill import Analysis
-    Analysis(result.x)
+    Analysis(Solution(result.x))
