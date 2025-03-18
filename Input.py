@@ -151,15 +151,18 @@ MBaseload = np.tile(CBaseload, (intervals, 1))
 
 pzones, wzones = (len(PVl), len(OnsWl))
 pnodes, wnodes, phnodes = nodes, nodes, nodes
-scale = 1
+maxim = 32.
 if scenario >=41:
     pnodes, wnodes, phnodes = pmask.sum(), wmask.sum(), 1
     pzones, wzones = 1, 1
     scale=nodes
+    maxim = 128.
 pidx, widx, sidx = (pzones, pzones + wzones, pzones + wzones + phnodes)
 
+
+
 lb = np.array([0.]*pzones +        [0.]*wzones +        [0.]*phnodes  +       [0.])
-ub = np.array([32.*scale]*pzones + [32.*scale]*wzones + [32.*scale]*phnodes + [1024.])
+ub = np.array([maxim]*pzones + [maxim]*wzones + [maxim]*phnodes + [1024.])
 
 
 

@@ -36,11 +36,11 @@ else:
     raise ValueError
     
 z = (pzones+wzones+phnodes)
-first_pass = np.array([10.1]*z + [500.1])
-ultralow_res = np.array([2.1]*z + [120]) 
-low_res = np.array([0.1]*z + [10.0]) # 100 MW, 10 GWh
-medium_res = np.array([0.01]*z + [1.0]) # 10 MW, 1 GWh
-high_res = np.array([0.001]*z + [0.01]) # 1 MW, 100 MWh
+first_pass = np.array([8.1]*z + [256.1])
+ultralow_res = np.array([2.1]*z + [64.1]) 
+low_res = np.array([1.1]*z + [16.1]) # 100 MW, 10 GWh
+medium_res = np.array([0.51]*z + [8.1]) # 10 MW, 1 GWh
+high_res = np.array([0.251]*z + [4.1]) # 1 MW, 100 MWh
 ultrahigh_res = np.array([0.000_1]*z + [0.01]) # 0.1 MW, 10 MWh
 polishing = np.array([0.000_001]*z + [0.000_1]) # 1 kW, 100 kWh
 
@@ -76,30 +76,42 @@ if __name__ == '__main__':
     problem.Step({'max_iter':10,
                   'max_res':res[1],
                   'near_optimal':2.5, 
-                  'max_pop':100,
+                  'max_pop':1000,
                   })
     
     print('step 3')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[1],
-                  'near_optimal':1.05, 
-                  'max_pop':10000,
-                  })
-    print('step 4')
-    problem.Step({'max_iter':20,
-                  'max_res':res[1],
                   'near_optimal':1.1, 
-                  'max_pop':50,
+                  'max_pop':20000,
                   })
-    print('step 5')
-    problem.Step({'max_iter':np.inf,
-                  'max_res':res[1],
-                  'near_optimal':1.05, 
-                  'max_pop':10000,
-                  })
-    # print('polish')
-    # problem.Polish({'max_res':res[1], 
-    #                 'near_optimal':1.05})
+    # print('step 4')
+    # problem.Step({'max_iter':10,
+    #               'max_res':res[2],
+    #               'near_optimal':2.5, 
+    #               'max_pop':1000,
+    #               })
+    # print('step 5')
+    # problem.Step({'max_iter':np.inf,
+    #               'max_res':res[2],
+    #               'near_optimal':1.1, 
+    #               'max_pop':20000,
+    #               })
+    # print('step 6')
+    # problem.Step({'max_iter':10,
+    #               'max_res':res[2],
+    #               'near_optimal':1.5, 
+    #               'max_pop':1000,
+    #               })
+    # print('step 7')
+    # problem.Step({'max_iter':np.inf,
+    #               'max_res':res[2],
+    #               'near_optimal':1.11, 
+    #               'max_pop':20000,
+    #               })
+    print('polish')
+    problem.Polish({'max_res':res[1], 
+                    'near_optimal':1.1})
     
     result = problem.ReturnElite()
 
