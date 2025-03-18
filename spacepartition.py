@@ -506,8 +506,8 @@ class Spacepartition:
     def _restart(self):
         if self.disp:
             print('Restarting optimisation where',self.restart,'left off.')
-    
-        history = pd.read_csv(self.restart+'-children.csv', header=None).to_numpy() # signficantly faster and lower memory than np.genfromtxt
+        # signficantly faster and lower memory than np.genfromtxt
+        history = pd.read_csv(self.restart+'-children.csv', header=None).astype(float).to_numpy() 
         try: 
             resolved = pd.read_csv(self.restart+'-resolved.csv', header=None).to_numpy()
             if len(resolved) != 0:
