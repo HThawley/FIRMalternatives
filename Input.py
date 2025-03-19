@@ -8,7 +8,7 @@ from numba import njit, float64, int64, prange, boolean
 from numba.experimental import jitclass
 from argparse import ArgumentParser
 
-from Costs import cost_factors
+from Costs import costs
 from Simulation import Reliability
 from Network import Transmission
 from Fill import Fill
@@ -55,6 +55,8 @@ assets = np.genfromtxt('Data/hydrobio.csv', dtype=None, delimiter=',', encoding=
 CHydro, CBio = [assets[:, x] * 0.001 for x in range(assets.shape[1])] 
 CBaseload = np.array([0, 0, 0, 0, 0, 1.0, 0, 0]) # 24/7, GW
 CPeak = CHydro + CBio - CBaseload # GW
+Hydro_resource = 16_000 #GWh/yr
+Hydro_cf = Hydro_resource/(CHydro.sum()*8760)
 
 # FQ, NQ, NS, NV, AS, SW, only TV constrained
 DClengths = np.array([1500, 1000, 1000, 800, 1200, 2400, 400]) 
@@ -86,16 +88,20 @@ elif scenario >= 21:
                 np.array(['FNQ', 'NSW', 'QLD', 'SA', 'TAS', 'VIC']),
                 np.array(['FNQ', 'NSW', 'QLD', 'SA', 'TAS', 'VIC', 'WA']),
                 np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC']),
-                np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'])][scenario % 10 - 1] 
+                np.array(['FNQ', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']), 
+                np.array(['NSW', 'QLD', 'SA', 'VIC'])
+                ][scenario % 10 - 1] 
     
     # 'FNQ-QLD', 'NSW-QLD', 'NSW-SA', 'NSW-VIC', 'NT-SA', 'SA-WA', 'TAS-VIC'
-    network_mask = [np.array([0,1,1,1,0,0,1], dtype=bool),
-                    np.array([0,1,1,1,0,1,1], dtype=bool),
-                    np.array([0,1,1,1,1,0,1], dtype=bool),
-                    np.array([0,1,1,1,1,1,1], dtype=bool),
-                    np.array([1,1,1,1,0,1,1], dtype=bool),
-                    np.array([1,1,1,1,1,0,1], dtype=bool),
-                    np.array([1,1,1,1,1,1,1], dtype=bool)][scenario % 10 - 1] 
+    network_mask = [np.array([0,0,0,0,0,0,1], dtype=bool),
+                    np.array([0,0,0,0,0,1,1], dtype=bool),
+                    np.array([0,0,0,0,1,0,1], dtype=bool),
+                    np.array([0,0,0,0,1,1,1], dtype=bool),
+                    np.array([1,0,0,0,0,1,1], dtype=bool),
+                    np.array([1,0,0,0,1,0,1], dtype=bool),
+                    np.array([1,0,0,0,1,1,1], dtype=bool), 
+                    np.array([0,0,0,0,0,0,0], dtype=bool)
+                    ][scenario % 10 - 1] 
     
     MLoad = MLoad[:, np.in1d(Nodel, coverage)]
     TSPV = TSPV[:, np.in1d(PVl, coverage)]
@@ -135,7 +141,6 @@ if scenario >= 41:
    
     pv_lb, pv_ub = np.array([0]), np.array([32.])
     
-    
 undersea_mask = np.array([0, 0, 0, 0, 0, 0, 1], dtype=bool)[network_mask]
 
 mload = MLoad.sum(axis=0) 
@@ -146,7 +151,7 @@ wload_factor =  mload[wmask] / mload[wmask].sum()
 
 intervals, nodes = MLoad.shape
 years = int(resolution * intervals / 8760)
-energy = MLoad.sum() * resolution / years # GWh p.a.
+energy = 1000* MLoad.sum() * resolution / years # MWh p.a.
 MBaseload = np.tile(CBaseload, (intervals, 1)) 
 
 pzones, wzones = (len(PVl), len(OnsWl))
@@ -160,6 +165,9 @@ if scenario >=41:
 pidx, widx, sidx = (pzones, pzones + wzones, pzones + wzones + phnodes)
 
 
+Hydro_resource, Bio_resource = 8760*(CHydro-CBaseload).sum()*Hydro_cf, 8760*CBio.sum()*Hydro_cf #GWh/year
+Flex_resource = (Hydro_resource + Bio_resource)/resolution*years # can be more easily compared later
+
 
 lb = np.array([0.]*pzones +        [0.]*wzones +        [0.]*phnodes  +       [0.])
 ub = np.array([maxim]*pzones + [maxim]*wzones + [maxim]*phnodes + [1024.])
@@ -168,8 +176,6 @@ ub = np.array([maxim]*pzones + [maxim]*wzones + [maxim]*phnodes + [1024.])
 
 #%%
 
-costs = cost_factors(DClengths, undersea_mask)
-
 # Specify the types for jitclass
 solution_spec = [
     ('x', float64[:]), 
@@ -177,10 +183,12 @@ solution_spec = [
     
     ('intervals', int64),
     ('nodes', int64),
-    ('nhvdc', int64),
+    ('ninter', int64),
     ('resolution', float64),
     ('years', float64),
     ('efficiency', float64),
+    
+    ('Flex_res', float64),
 
     ('Nodel_int', int64[:]), 
     ('PVl_int', int64[:]),
@@ -216,8 +224,8 @@ solution_spec = [
     ('MHydro', float64[:, :]),
     ('MBio', float64[:, :]),
     
-    ('TDC', float64[:, :]),
-    ('CDC', float64[:]),
+    ('TAC', float64[:, :]),
+    ('CAC', float64[:]),
     # ('FQ', float64[:]),
     # ('NQ', float64[:]),
     # ('NS', float64[:]),
@@ -244,9 +252,11 @@ class Solution:
         self.x = x
         self.scenario = scenario
         self.intervals, self.nodes = intervals, nodes
-        self.nhvdc = len(DCloss)
+        self.ninter = len(DCloss)
         self.resolution, self.years = resolution, years
         self.efficiency = efficiency
+        
+        self.Flex_res = Flex_resource
 
         self.Nodel_int, self.PVl_int, self.OnsWl_int = Nodel_int, PVl_int, OnsWl_int
         
@@ -293,15 +303,7 @@ class Solution:
     
     def _evaluate(self, costs):
         Hydro = (self.MBaseload.sum() + Fill(self).sum())*self.resolution/self.years
-        self.Penalties = max(0, Hydro - 20_000_000) # 20 TWh p.a. 
-        self.Penalties += max(0, self.GDeficit.sum() * self.resolution) 
-
-        TDC = np.abs(Transmission(self)) if self.scenario>=21 else np.zeros((1, self.nhvdc))
-
-        self.CDC = np.zeros(self.nhvdc, dtype=np.float64)
-        for j in range(self.nhvdc):
-            for i in range(len(TDC)):
-                self.CDC[j] = np.maximum(TDC[i, j], self.CDC[j])
+        self.Penalties += max(0, self.GDeficit.sum()) * 1000
 
         cost = np.array([
             self.CPV.sum() * costs.pv, 
@@ -311,17 +313,17 @@ class Solution:
             self.CPHS * costs.phes[1],
             self.GDischarge.sum() * 1000 * costs.phes[2] * self.resolution / self.years,  
             costs.phes[3],] +
-            list(self.CDC * costs.hvdc) +
             [Hydro * costs.hydro * 1000.,
             ]) # $ p.a.
                 
-        energyloss = 1000*np.abs(energy - (TDC.sum(axis=0) * DCloss).sum() * self.resolution / self.years) #MWh
-        self.LCOE = cost.sum() / energyloss # $/MWh
-        self.LCOG = (cost[0]+cost[1]+cost[14]) / (
+        self.LCOE = cost.sum() / energy# $/MWh
+        self.LCOG = (cost[0]+cost[1]+cost[7]) / (
             1000 * (self.resolution/self.years*(self.MPV.sum() + self.MOnsW.sum()) + Hydro))
-        self.LCOBS = (cost[3]+cost[4]+cost[5]+cost[6]) / energyloss
-        self.LCOBT = (cost[2]+cost[7]+cost[8]+cost[9]+cost[10]+cost[11]+cost[12]+cost[13]) / energyloss
+        self.LCOBS = (cost[3]+cost[4]+cost[5]+cost[6]) / energy
+        self.LCOBT = (cost[2]) / energy
         self.LCOBL = self.LCOE - self.LCOG - self.LCOBS - self.LCOBT
+        
+    
         
 #%%
 if __name__=='__main__':
@@ -334,7 +336,7 @@ if __name__=='__main__':
             print(solution.LCOE, solution.LCOG, solution.LCOBS, solution.LCOBT, solution.LCOBL)
     
     try:
-        if scenario == 41:
+        if scenario == 41 or scenario==48:
             x = np.array([42., 27.5, 21.22, 432.])
         elif scenario == 31:
             x = np.array([42./4]*4 + [27.5/5]*5 + [21.22/5]*5 + [432.])

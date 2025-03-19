@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit, float64
 from numba.experimental import jitclass
 
-USD_to_AUD = 1.43 # AUD to USD where necessary
+USD_to_AUD = 1/0.65 # AUD to USD where necessary
 discount_rate = 0.0599 # Real discount rate - same as gencost
 USD_inflation = 1.18 # 2020->2023
 AUD_inflation = 1.16 # 2020->2023
@@ -35,8 +35,35 @@ csiro_offw = (
     25,     # life  years
     )
 
+## costs from re100 cost model - Class A site
+#==============================================================================
+phes = (
+    1857    * USD_inflation * USD_to_AUD, # capex AUD/kW
+    10     * USD_inflation * USD_to_AUD, # capex AUD/kWh
+    8.21   * USD_inflation * USD_to_AUD, # fom AUD/kW p.a.
+    0.6    * USD_inflation * USD_to_AUD, # vom AUD/MWh
+    112000 * USD_inflation * USD_to_AUD, # AUD per replace
+    50,  # replace lifetime
+    100, # life years
+    )
+
+# same O&M as PHES, but no capital
+hydro = (
+    0, # capex (existing only)
+    phes[2], # fom AUD/kW p.a. #same as phes (approx)
+    phes[3]/2, # vom AUD/MWh #half phes (one-way trip) (approx)
+    50, #life years
+    )
+
 ## costs adjusted for inflation but otherwise unchanged from Lu et al. 2021 https://doi.org/10.1016/j.energy.2020.119678
 #==============================================================================
+hvac = (
+    1500 * AUD_inflation, # capex AUD/MW-km
+    15   * AUD_inflation, # fom   AUD/MW-km p.a.
+    0,                    # vom 
+    50,                   # life  years
+    )
+
 hvdc_overhead = (
     320 * AUD_inflation,  # capex AUD/MW-km
     3.2 * AUD_inflation,  # fom   AUD/MW-km p.a.
@@ -59,26 +86,6 @@ hvdc_undersea = (
     30,                   # life  years
     )
 
-hvac = (
-    1500 * AUD_inflation, # capex AUD/MW-km
-    15   * AUD_inflation, # fom   AUD/MW-km p.a.
-    0,                    # vom 
-    50,                   # life  years
-    )
-
-hydro_purchase = 50 # AUD/MWh p.a.
-
-## costs from re100 cost model - Class A site
-#==============================================================================
-phes = (
-    530    * USD_inflation * USD_to_AUD, # capex AUD/kW
-    47     * USD_inflation * USD_to_AUD, # capex AUD/kWh
-    8.21   * USD_inflation * USD_to_AUD, # fom AUD/kW p.a.
-    0.3    * USD_inflation * USD_to_AUD, # vom AUD/MWh
-    112000 * USD_inflation * USD_to_AUD, # AUD per replace
-    50,  # replace lifetime
-    100, # life years
-    )
 
 @njit
 def annualization_constants(capex, fom, vom, life, dr):
@@ -110,35 +117,32 @@ def annualization_phes_constants(capex_p, capex_e, fom, vom, replace_cost, repla
             ])
 
 @jitclass([
-    ('pv',      float64     ),  
-    ('onsw',    float64     ),  
-    ('offw',    float64     ),
-    ('ac',      float64     ),
-    ('hydro',   float64     ),
-    ('phes',    float64[:]  ),
-    ('hvdc',    float64[:]  ),
+    ('pv',      float64   ),  
+    ('onsw',    float64   ),  
+    ('offw',    float64   ),
+    ('ac',      float64   ),
+    ('hydro',   float64   ),
+    ('phes',    float64[:]),
     ])
 class cost_factors:
-    def __init__(self, DClengths, undersea_mask):
+    def __init__(self):
         self.pv    = annualization_constants(*csiro_pv,   discount_rate)[0] #vom is 0
         self.onsw  = annualization_constants(*csiro_onsw, discount_rate)[0] #vom is 0
         self.offw  = annualization_constants(*csiro_offw, discount_rate)[0] #vom is 0
         
-        self.ac    = annualization_transmission_constants(*hvac, 20, discount_rate)[0] #vom is 0
+        self.ac    = annualization_transmission_constants(*hvac, 50, discount_rate)[0] #vom is 0
         
         self.phes  = annualization_phes_constants(*phes, discount_rate)
+        self.hydro = annualization_constants(*hydro, discount_rate)[1] # capex is 0
         
-        self.hvdc = np.zeros(len(DClengths), float)
-        for i, undersea in enumerate(undersea_mask):
-            if undersea:
-                self.hvdc[i] = annualization_transmission_constants(*hvdc_undersea, DClengths[i], discount_rate)[0] # vom is 0
-            else: 
-                self.hvdc[i] = annualization_transmission_constants(*hvdc_overhead, DClengths[i], discount_rate)[0] # vom is 0
-                self.hvdc[i] += 2*annualization_constants(*converter, discount_rate)[0]
+        # self.hvdc = np.zeros(len(DClengths), float)
+        # for i, undersea in enumerate(undersea_mask):
+        #     if undersea:
+        #         self.hvdc[i] = annualization_transmission_constants(*hvdc_undersea, DClengths[i], discount_rate)[0] # vom is 0
+        #     else: 
+        #         self.hvdc[i] = annualization_transmission_constants(*hvdc_overhead, DClengths[i], discount_rate)[0] # vom is 0
+        #         self.hvdc[i] += 2*annualization_constants(*converter, discount_rate)[0]
 
-        self.hydro=hydro_purchase
+costs = cost_factors()
 
-if __name__ == '__main__':
-    from Input import DClengths, undersea_mask
-    
-    costs = cost_factors(DClengths, undersea_mask)
+

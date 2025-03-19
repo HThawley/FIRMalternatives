@@ -23,7 +23,14 @@ def Fill(solution):
 
             fill -= flex
             flexible[t] += flex
+            
     Reliability(solution, flexible=flexible)
+    # enforce resource limit
+    if flexible.sum() - solution.Flex_res > 1: #allow tolerance
+        flexible = np.maximum(flexible - solution.GSpillage, 0) 
+        flexible = flexible * min(1, solution.Flex_res / flexible.sum())
+        Reliability(solution, flexible=flexible)
+        
     return flexible
 
 

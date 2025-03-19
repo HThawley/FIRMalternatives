@@ -54,7 +54,7 @@ def LPGM(solution):
     C = np.stack((solution.MLoad.sum(axis=1), solution.MHydro.sum(axis=1), solution.MBio.sum(axis=1), 
                   solution.MPV.sum(axis=1), solution.MOnsW.sum(axis=1), solution.GDischarge, 
                   solution.GDeficit, -1 * solution.GSpillage, -1 * solution.GCharge, solution.GStorage))
-    C = np.hstack((C.T, solution.TDC))
+    C = np.hstack((C.T, solution.TAC))
     C = np.around(1000*C) # GW & GWh to MW & MWh
 
     datentime = np.array([(dt.datetime(firstyear, 1, 1, 0, 0) + x * dt.timedelta(minutes=60 * resolution)).strftime('%a %d-%b %Y %H:%M') for x in range(intervals)])
@@ -109,14 +109,15 @@ def GGTA(solution, save=True):
                  + costs.phes[2] * GPHES 
                  + costs.phes[3]) # $ p.a.
 
-    CostDC = (costs.hvdc * solution.CDC).sum() # $ p.a.
+    CosTAC = 0#(costs.hvdc * solution.CDC).sum() # $ p.a.
     CostAC = costs.ac * (CPV + COnsW) # $ p.a.
 
     Energy = MLoad.sum() * 1000 * resolution / years # MWh p.a.
-    Loss = np.sum(np.abs(solution.TDC), axis=0) * DCloss
-    Loss = Loss.sum() * 1000 * resolution / years # MWh p.a.
+    Loss = 0
+    # Loss = np.sum(np.abs(solution.TAC), axis=0) * DCloss
+    # Loss = Loss.sum() * 1000 * resolution / years # MWh p.a.
 
-    LCOE = (CostPV + CostOnsW + CostHydro + CostBio + CostPH + CostDC + CostAC) / (Energy - Loss)
+    LCOE = (CostPV + CostOnsW + CostHydro + CostBio + CostPH + CosTAC + CostAC) / (Energy - Loss)
     LCOG = (CostPV +  CostOnsW + CostHydro + CostBio) / (GPV + GOnsW + GHydro + GBio)
     LCOGP    = CostPV    / GPV    if GPV!=0    else 0
     LCOGOnsW = CostOnsW  / GOnsW  if GOnsW!=0  else 0
@@ -125,7 +126,7 @@ def GGTA(solution, save=True):
     
     LCOB  = LCOE - LCOG
     LCOBS = CostPH / (Energy - Loss)
-    LCOBT = (CostDC + CostAC) / (Energy - Loss)
+    LCOBT = (CosTAC + CostAC) / (Energy - Loss)
     LCOBL = LCOB - LCOBS - LCOBT
     
     print('Levelised costs of electricity:')
@@ -167,9 +168,9 @@ def TransmissionStatistics(solution):
                      'Utilisation rate (%)'])
     
     with warnings.catch_warnings(category=RuntimeWarning, action='ignore'):
-        T = np.array([[solution.CDC[i], np.maximum(0, solution.TDC[:,i]).sum()*0.001*resolution/years, 
-                       -np.minimum(0, solution.TDC[:,i]).sum()*0.001*resolution/years, 
-                       100*(np.abs(solution.TDC[:,i]).sum()*resolution/years)/(solution.CDC[i]*intervals*resolution/years)] 
+        T = np.array([[solution.CDC[i], np.maximum(0, solution.TAC[:,i]).sum()*0.001*resolution/years, 
+                       -np.minimum(0, solution.TAC[:,i]).sum()*0.001*resolution/years, 
+                       100*(np.abs(solution.TAC[:,i]).sum()*resolution/years)/(solution.CDC[i]*intervals*resolution/years)] 
                       for i in range(solution.nhvdc)]).T
         T = np.nan_to_num(T, False, 0)
     
@@ -193,34 +194,23 @@ def Information(x):
     except AssertionError:
         pass
 
-    if int(scenario)>=21:
-        S.TDC = Transmission(S) 
-    else:
-        S.TDC = np.zeros((intervals, len(DCloss))) #
+    S.TAC = Transmission(S) 
 
-        S.MPeak = np.atleast_2d(S.GFlexible).T 
-
-        S.MDischarge = np.atleast_2d(S.GDischarge).T 
-        S.MDeficit   = np.atleast_2d(S.GDeficit).T 
-        S.MCharge    = np.atleast_2d(S.GCharge).T 
-        S.MStorage   = np.atleast_2d(S.GStorage).T 
-        S.MSpillage  = np.atleast_2d(S.GSpillage).T 
-
-    S.CDC = np.amax(np.abs(S.TDC), axis=0) 
+    S.CAC = np.amax(np.abs(S.TAC), axis=0) 
 
     S.MHydro = np.minimum(CHydro-CBaseload, S.MPeak)
     S.MBio = S.MPeak - S.MHydro
     S.MHydro += S.MBaseload
 
     S.Topology = np.stack((
-        -1 * S.TDC[:,0], 
-        -1 * (S.TDC[:,1] + S.TDC[:,2] + S.TDC[:,3]),
-        -1 * S.TDC[:,4], 
-        S.TDC[:,0] + S.TDC[:,1], 
-        S.TDC[:,2] + S.TDC[:,4] - S.TDC[:,5], 
-        -1 * S.TDC[:,6], 
-        S.TDC[:,3] + S.TDC[:,6], 
-        S.TDC[:,5]
+        -1 * S.TAC[:,0], 
+        -1 * (S.TAC[:,1] + S.TAC[:,2] + S.TAC[:,3]),
+        -1 * S.TAC[:,4], 
+        S.TAC[:,0] + S.TAC[:,1], 
+        S.TAC[:,2] + S.TAC[:,4] - S.TAC[:,5], 
+        -1 * S.TAC[:,6], 
+        S.TAC[:,3] + S.TAC[:,6], 
+        S.TAC[:,5]
         ))
     
     Debug(S)

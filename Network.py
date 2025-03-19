@@ -9,6 +9,11 @@ from numba import njit
 @njit()
 def Transmission(solution):
     
+    if solution.scenario < 20:
+        solution.CAC = np.zeros(solution.ninter, np.float64)
+        solution.TAC = np.zeros((1,solution.ninter), np.float64)
+        return solution.TAC
+        
     solution.MPeak = np.atleast_2d(solution.GFlexible).T * solution.CPeak / solution.CPeak.sum()
     solution.MDeficit = np.atleast_2d(solution.GDeficit / solution.MLoad.sum(axis=1)).T * solution.MLoad 
     
@@ -29,13 +34,19 @@ def Transmission(solution):
     MImport = (solution.MLoad + solution.MCharge + solution.MSpillage \
               - MPW - solution.MBaseload - solution.MPeak - solution.MDischarge - solution.MDeficit).T
 
-    solution.TDC = np.zeros((7, solution.intervals), np.float64)
-    solution.TDC[0] = - MImport[np.where(solution.Nodel_int==0)[0][0]] if 0 in solution.Nodel_int else np.zeros(solution.intervals, dtype=np.float64)
-    solution.TDC[4] = - MImport[np.where(solution.Nodel_int==2)[0][0]] if 2 in solution.Nodel_int else np.zeros(solution.intervals, dtype=np.float64)
-    solution.TDC[5] = MImport[np.where(solution.Nodel_int==7)[0][0]] if 7 in solution.Nodel_int else np.zeros(solution.intervals, dtype=np.float64)
-    solution.TDC[6] = - MImport[np.where(solution.Nodel_int==5)[0][0]]
-    solution.TDC[1] = MImport[np.where(solution.Nodel_int==3)[0][0]] - solution.TDC[0]
-    solution.TDC[3] = MImport[np.where(solution.Nodel_int==6)[0][0]] - solution.TDC[6]
-    solution.TDC[2] = - MImport[np.where(solution.Nodel_int==1)[0][0]] - solution.TDC[1] - solution.TDC[3]
-    solution.TDC = solution.TDC.T
-    return solution.TDC
+    solution.TAC = np.zeros((solution.ninter, solution.intervals), np.float64)
+    solution.TAC[0] = - MImport[np.where(solution.Nodel_int==0)[0][0]] if 0 in solution.Nodel_int else np.zeros(solution.intervals, dtype=np.float64)
+    solution.TAC[4] = - MImport[np.where(solution.Nodel_int==2)[0][0]] if 2 in solution.Nodel_int else np.zeros(solution.intervals, dtype=np.float64)
+    solution.TAC[5] =   MImport[np.where(solution.Nodel_int==7)[0][0]] if 7 in solution.Nodel_int else np.zeros(solution.intervals, dtype=np.float64)
+    solution.TAC[6] = - MImport[np.where(solution.Nodel_int==5)[0][0]]
+    solution.TAC[1] =   MImport[np.where(solution.Nodel_int==3)[0][0]] - solution.TAC[0]
+    solution.TAC[3] =   MImport[np.where(solution.Nodel_int==6)[0][0]] - solution.TAC[6]
+    solution.TAC[2] = - MImport[np.where(solution.Nodel_int==1)[0][0]] - solution.TAC[1] - solution.TAC[3]
+    solution.TAC = solution.TAC.T
+    
+    solution.CAC = np.zeros(solution.ninter, dtype=np.float64)
+    for j in range(solution.ninter):
+        for i in range(len(solution.TAC)):
+            solution.CAC[j] = np.maximum(abs(solution.TAC[i, j]), solution.CAC[j])
+    
+    return solution.TAC
