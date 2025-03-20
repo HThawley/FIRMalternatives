@@ -85,30 +85,30 @@ if __name__ == '__main__':
                   'near_optimal':1.1, 
                   'max_pop':20000,
                   })
-    # print('step 4')
-    # problem.Step({'max_iter':10,
-    #               'max_res':res[2],
-    #               'near_optimal':2.5, 
-    #               'max_pop':1000,
-    #               })
-    # print('step 5')
-    # problem.Step({'max_iter':np.inf,
-    #               'max_res':res[2],
-    #               'near_optimal':1.1, 
-    #               'max_pop':20000,
-    #               })
-    # print('step 6')
-    # problem.Step({'max_iter':10,
-    #               'max_res':res[2],
-    #               'near_optimal':1.5, 
-    #               'max_pop':1000,
-    #               })
-    # print('step 7')
-    # problem.Step({'max_iter':np.inf,
-    #               'max_res':res[2],
-    #               'near_optimal':1.11, 
-    #               'max_pop':20000,
-    #               })
+    print('step 4')
+    problem.Step({'max_iter':10,
+                  'max_res':res[2],
+                  'near_optimal':2.5, 
+                  'max_pop':1000,
+                  })
+    print('step 5')
+    problem.Step({'max_iter':np.inf,
+                  'max_res':res[2],
+                  'near_optimal':1.1, 
+                  'max_pop':20000,
+                  })
+    print('step 6')
+    problem.Step({'max_iter':10,
+                  'max_res':res[2],
+                  'near_optimal':1.5, 
+                  'max_pop':1000,
+                  })
+    print('step 7')
+    problem.Step({'max_iter':np.inf,
+                  'max_res':res[2],
+                  'near_optimal':1.11, 
+                  'max_pop':20000,
+                  })
     print('polish')
     problem.Polish({'max_res':res[1], 
                     'near_optimal':1.1})

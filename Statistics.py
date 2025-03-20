@@ -146,7 +146,7 @@ def GGTA(solution, save=True):
                       CPV, GPV * 0.000_001, COnsW, 
                       GOnsW * 0.000_001, CapHydrobio, GHydrobio * 0.000_001,
                       CPHP, CPHS, GPHES * 0.000_001]
-                  + list(solution.CDC)
+                  + list(solution.CAC)
                   + [LCOE, LCOG, LCOBS, LCOBT, LCOBL])
     
         header = ','.join(['Demand Served (TWh p.a.)', 'Transmission Loss (TWh p.a.)', 
@@ -168,9 +168,9 @@ def TransmissionStatistics(solution):
                      'Utilisation rate (%)'])
     
     with warnings.catch_warnings(category=RuntimeWarning, action='ignore'):
-        T = np.array([[solution.CDC[i], np.maximum(0, solution.TAC[:,i]).sum()*0.001*resolution/years, 
+        T = np.array([[solution.CAC[i], np.maximum(0, solution.TAC[:,i]).sum()*0.001*resolution/years, 
                        -np.minimum(0, solution.TAC[:,i]).sum()*0.001*resolution/years, 
-                       100*(np.abs(solution.TAC[:,i]).sum()*resolution/years)/(solution.CDC[i]*intervals*resolution/years)] 
+                       100*(np.abs(solution.TAC[:,i]).sum()*resolution/years)/(solution.CAC[i]*intervals*resolution/years)] 
                       for i in range(solution.nhvdc)]).T
         T = np.nan_to_num(T, False, 0)
     
