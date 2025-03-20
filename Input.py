@@ -97,10 +97,11 @@ elif scenario >= 21:
                     np.array([0,0,0,0,0,1,1], dtype=bool),
                     np.array([0,0,0,0,1,0,1], dtype=bool),
                     np.array([0,0,0,0,1,1,1], dtype=bool),
+                    np.array([1,0,0,0,0,0,1], dtype=bool),
                     np.array([1,0,0,0,0,1,1], dtype=bool),
                     np.array([1,0,0,0,1,0,1], dtype=bool),
                     np.array([1,0,0,0,1,1,1], dtype=bool), 
-                    np.array([0,0,0,0,0,0,0], dtype=bool)
+                    np.array([0,0,0,0,0,0,0], dtype=bool),
                     ][scenario % 10 - 1] 
     
     MLoad = MLoad[:, np.in1d(Nodel, coverage)]
