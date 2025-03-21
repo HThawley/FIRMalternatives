@@ -98,25 +98,19 @@ if __name__ == '__main__':
                   'max_pop':20000,
                   })
     print('step 6')
-    problem.Step({'max_iter':10,
-                  'max_res':res[2],
-                  'near_optimal':2.5, 
-                  'max_pop':1000,
-                  })
-    print('step 7')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[3],
                   'near_optimal':1.25, 
                   'max_pop':20000,
                   })
     
-    print('step 8')
+    print('step 7')
     problem.Step({'max_iter':20,
                   'max_res':res[3],
                   'near_optimal':2.0, 
                   'max_pop':10000,
                   })
-    print('step 9')
+    print('step 8')
     problem.Step({'max_iter':np.inf,
                   'max_res':res[3],
                   'near_optimal':1.2, 
