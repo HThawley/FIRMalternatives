@@ -90,17 +90,20 @@ hvac = (
     50,                   # life  years
     )
 
-## costs from re100 cost model - Class A site
+## costs from re100 cost model - Class AA site
+# 1 GW / 160 GWh
+# 700 m head, 10 km separation
+# 8.0 W/R 
 #==============================================================================
 phes = (
-    530    * USD_inflation * USD_to_AUD, # capex AUD/kW
-    47     * USD_inflation * USD_to_AUD, # capex AUD/kWh
+    943    * USD_inflation * USD_to_AUD, # capex AUD/kW
+    15     * USD_inflation * USD_to_AUD, # capex AUD/kWh
     8.21   * USD_inflation * USD_to_AUD, # fom AUD/kW p.a.
-    0.3    * USD_inflation * USD_to_AUD, # vom AUD/MWh
+    0.6    * USD_inflation * USD_to_AUD, # vom AUD/MWh
     112000 * USD_inflation * USD_to_AUD, # AUD per replace
     50,  # replace lifetime
     100, # life years
-    )
+    ) 
 
 # same O&M as PHES, but no capital
 hydro = (
