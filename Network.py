@@ -10,7 +10,9 @@ def Transmission(solution):
     solution.MGas   = np.atleast_2d(solution.GGas).T   * solution.CGas   / solution.CGas.sum()
     
     solution.MDeficit = np.atleast_2d(solution.GDeficit / solution.MLoad.sum(axis=1)).T * solution.MLoad 
-    solution.MSpillage = np.atleast_2d(solution.GSpillage / (solution.MPV.sum(axis=1) + solution.MOnsW.sum(axis=1))).T * (solution.MPV+solution.MOnsW)
+    solution.MSpillage = np.atleast_2d(solution.GSpillage / (
+        solution.MPV.sum(axis=1) + solution.MOnsW.sum(axis=1) + solution.GFlexible)
+        ).T * (solution.MPV+solution.MOnsW+solution.MHydro+solution.MBio+solution.MGas)
 
 # =============================================================================
 #     seems to handle divide by zero ok - but leaving above code for later dev

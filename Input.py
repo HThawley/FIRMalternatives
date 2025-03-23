@@ -226,7 +226,7 @@ class Solution:
     def _evaluate(self, costs):
         self.Penalties += max(0, Fill(self).sum()*self.resolution)
 
-        if scenario >= 21:
+        if self.scenario >= 21:
             TDC = np.abs(Transmission(self))
             self.CDC = np.zeros(len(network_mask), dtype=np.float64)
             for j in range(len(network_mask)):

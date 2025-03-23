@@ -7,7 +7,7 @@ discount_rate = 0.0599 # Real discount rate - same as gencost
 USD_inflation = 1.18 # 2020->2023
 AUD_inflation = 1.16 # 2020->2023
 MWh_per_GJ = 0.27778
-carbon_price = 0 # AUD/tCO2e
+carbon_price = 140 # AUD/tCO2e
 tCO2e_per_GJ_gas  = 0.05 
 tCO2e_per_GJ_coal = 0.1
 
@@ -44,7 +44,7 @@ csiro_gas = (
     943,    # capex AUD/kW
     10.2,   # fom   AUD/kW p.a.
     7.3,    # vom   AUD/MWh
-    16.5 / 0.33 * MWh_per_GJ, # fuel AUD/MWh
+    16.5 / 0.33 / MWh_per_GJ, # fuel AUD/MWh
     tCO2e_per_GJ_gas / MWh_per_GJ * carbon_price, # carbon intensity tCO2e/MWh
     25,     # life  years
     )
@@ -54,7 +54,7 @@ csiro_coal = (
     5616,   # capex AUD/kW
     53.2,   # fom   AUD/kW p.a.
     4.2,    # vom   AUD/MWh
-    7.8 / 0.42 * MWh_per_GJ, # fuel AUD/MWh
+    7.8 / 0.42 / MWh_per_GJ, # fuel AUD/MWh
     tCO2e_per_GJ_coal / MWh_per_GJ * carbon_price, # carbon intensity tCO2e/MWh
     30,     # life  years
     )
@@ -165,7 +165,7 @@ def annualization_phes(capex_p, capex_e, fom, vom, replace_cost, replace_life, l
             capex_p * 1_000_000 / pv, # capex $ p.a./GW
             capex_e * 1_000_000 / pv, # capex $ p.a./GWh
             fom * 1_000_000, # fom $ p.a./GW            
-            vom, # vom $ p.a./MWh p.a.
+            vom * 1000, # vom $ p.a./GWh p.a.
             replace_cost * ((1+dr)**(-1*replace_cost) + (1+dr)**(-1*replace_life*2)) / pv # replace capex $p.a.
             ])
 
@@ -280,5 +280,6 @@ class Cost_Factors:
         self.hvdc = self.hvdc.T
 
 if __name__ == '__main__':
+    
     from Input import scenario, DClengths, undersea_mask, network_mask
     costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask).CostFactors()
