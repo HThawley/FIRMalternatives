@@ -39,9 +39,10 @@ csiro_offw = (
     25,     # life  years
     )
 
+# capex from Table B.1
 # large open cycle gas 
 csiro_gas = (
-    943,    # capex AUD/kW
+    1310,   # capex AUD/kW
     10.2,   # fom   AUD/kW p.a.
     7.3,    # vom   AUD/MWh
     16.5 / 0.33 / MWh_per_GJ, # fuel AUD/MWh
@@ -49,9 +50,10 @@ csiro_gas = (
     25,     # life  years
     )
 
+# capex from Table B.1
 # black coal
 csiro_coal = (
-    5616,   # capex AUD/kW
+    6037,   # capex AUD/kW
     53.2,   # fom   AUD/kW p.a.
     4.2,    # vom   AUD/MWh
     7.8 / 0.42 / MWh_per_GJ, # fuel AUD/MWh
@@ -96,8 +98,8 @@ hvac = (
 # 8.0 W/R 
 #==============================================================================
 phes = (
-    943    * USD_inflation * USD_to_AUD, # capex AUD/kW
-    15     * USD_inflation * USD_to_AUD, # capex AUD/kWh
+    1164   * USD_inflation * USD_to_AUD, # capex AUD/kW
+    18     * USD_inflation * USD_to_AUD, # capex AUD/kWh
     8.21   * USD_inflation * USD_to_AUD, # fom AUD/kW p.a.
     0.6    * USD_inflation * USD_to_AUD, # vom AUD/MWh
     112000 * USD_inflation * USD_to_AUD, # AUD per replace
