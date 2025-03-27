@@ -13,7 +13,7 @@ from shutil import copyfile
 from Input import keeptime, timekeeper, timekeeper_names
 
 class Fileprinter:
-    def __init__(self, file_name:str, save_freq:int, header=None):
+    def __init__(self, file_name:str, save_freq:int, header=None, resume=False):
         self.file_name=file_name
         self.temp_file_path = '-temp.'.join(self.file_name.split('.'))
         self.save_freq=save_freq

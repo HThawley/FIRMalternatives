@@ -21,7 +21,7 @@ wind_capex = raw_costs.onsw[0]
 wind_capex = 0.75*wind_capex, wind_capex, 1.25*wind_capex
 
 gas_fuel = raw_costs.gas[3]
-gas_fuel = 0.75*gas_fuel, gas_fuel, 1.25*gas_fuel
+gas_fuel = 0.75*gas_fuel, gas_fuel, 1.25*gas_fuel, gas_fuel*1e9
 
 carbon_price = (0, 35, 70, 140)
 
@@ -95,18 +95,23 @@ def calculate_costs(history, costs):
 
 if __name__ == '__main__':
     fileprinter = Fileprinter(f'Results/Paramsweep{scenario}.csv', 1, [
-        'carbon price', 'gas fuel', 'pv capex', 'wind capex', 'LCOE'] + list(range(len(lb))))
+        'carbon price', 'gas fuel', 'pv capex', 'wind capex', 'LCOE'] + list(range(len(lb))), 
+        resume=bool(args.res))
     
     start = not bool(args.res)
     
     hyperparameters = (
-        (0.5, 1.5, 0.4), 
-        (0.25, 0.5, 0.15))
+        (1.0, 1.5, 0.5, 50, 100, 1), 
+        (0.5, 1.0, 0.4, 50, 100, 0.1))
     
     for hp in hyperparameters:
-        args.ml, args.mu, args.r = hp
+        i=0
+        args.ml, args.mu, args.r, disp_step, stag, stag_rate = hp
         for p, carbon_step in enumerate(carbon_price):
-            raw_costs.UpdateCarbonPrice(carbon_step)
+            raw_costs.carbon_price = carbon_step
+            # ============================================
+            # gas fuel cost not being updated properly here??
+            # ============================================
             costs = raw_costs.CostFactors()
             for q, gas_step in enumerate(gas_fuel):
                 raw_costs.gas[3] = gas_step
@@ -117,7 +122,8 @@ if __name__ == '__main__':
                     for s, wind_step in enumerate(wind_capex):
                         raw_costs.onsw[0] = wind_step
                         costs = raw_costs.CostFactors()
-                
+                        if q != 3:
+                            continue
                         if start:
                             with open(f'Results/History{scenario}.csv', 'w', newline='') as file:
                                 writer(file)
@@ -129,8 +135,9 @@ if __name__ == '__main__':
                             x0 = init[0]
                             if len(init) < args.p:
                                 init = 'latinhypercube'
-                        print(init, init.shape)
-                        result, t = Optimise(costs, init, x0, (25, 50, 1))
+                        i+=1
+                        print(i, '/', 108)
+                        result, t = Optimise(costs, init, x0, (disp_step, stag, stag_rate))
                         fileprinter([[p,q,r,s,result.fun]+list(result.x)])
-    PrintTimekeeper(f'Timekeep-ps-{scenario}.csv')
+    PrintTimekeeper(f'Results/Timekeep-ps-{scenario}.csv')
 

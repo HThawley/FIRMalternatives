@@ -83,7 +83,7 @@ def Optimise(costs, init='latinhypercube', x0=None, callback_args=()):
     starttime = dt.now()
     print("Optimisation starts at", starttime)
     
-    fileprinter = Fileprinter(f'Results/History{scenario}.csv', 20)
+    fileprinter = Fileprinter(f'Results/History{scenario}.csv', 20, resume=bool(args.res))
     
     result = differential_evolution(
         func=ObjectiveWrapper, 
