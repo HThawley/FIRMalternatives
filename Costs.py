@@ -12,29 +12,29 @@ tCO2e_per_GJ_gas  = 0.05
 tCO2e_per_GJ_coal = 0.1
 
 
-## costs come from Apx Table B.9 of GenCost 2023-24 
-## year = 2023
+## costs come from Apx Table B.9 of GenCost 2024-25
+## year = 2024
 #==============================================================================
 # utility solar
 csiro_pv = (
-    1526,   # capex AUD/kW 
-    17,     # fom   AUD/kW p.a.
+    1463,   # capex AUD/kW 
+    12,     # fom   AUD/kW p.a.
     0,      # vom   AUD/MWh 
     30,     # life  years
     )
 
 # onshore wind
 csiro_onsw = (
-    3038,   # capex AUD/kW 
-    25,     # fom   AUD/kW p.a.
+    3223,   # capex AUD/kW 
+    28,     # fom   AUD/kW p.a.
     0,      # vom   AUD/MWh 
     25,     # life  years
     )
 
 # offshore wind
 csiro_offw = (
-    5545,   # capex AUD/kW 
-    149.9,  # fom   AUD/kW
+    4710,   # capex AUD/kW 
+    174.6,  # fom   AUD/kW
     0,      # vom   AUD/MWh
     25,     # life  years
     )
@@ -43,9 +43,9 @@ csiro_offw = (
 # large open cycle gas 
 csiro_gas = (
     1310,   # capex AUD/kW
-    10.2,   # fom   AUD/kW p.a.
-    7.3,    # vom   AUD/MWh
-    16.5 / 0.33 / MWh_per_GJ, # fuel AUD/MWh
+    14.1,   # fom   AUD/kW p.a.
+    8.1,    # vom   AUD/MWh
+    ((13.5+19.8)/2) / 0.33 / MWh_per_GJ, # fuel AUD/MWh
     tCO2e_per_GJ_gas / MWh_per_GJ * carbon_price, # carbon intensity tCO2e/MWh
     25,     # life  years
     )
@@ -54,9 +54,9 @@ csiro_gas = (
 # black coal
 csiro_coal = (
     6037,   # capex AUD/kW
-    53.2,   # fom   AUD/kW p.a.
-    4.2,    # vom   AUD/MWh
-    7.8 / 0.42 / MWh_per_GJ, # fuel AUD/MWh
+    64.9,   # fom   AUD/kW p.a.
+    4.7,    # vom   AUD/MWh
+    ((3.1+4.6)/2) / 0.42 / MWh_per_GJ, # fuel AUD/MWh
     tCO2e_per_GJ_coal / MWh_per_GJ * carbon_price, # carbon intensity tCO2e/MWh
     30,     # life  years
     )
