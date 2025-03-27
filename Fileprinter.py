@@ -19,7 +19,7 @@ class Fileprinter:
         self.save_freq=save_freq
         self.callno = 0
         self.array = None
-        if header is not None:
+        if resume is False and header is not None:
             with open(self.file_name, 'w', newline='') as file:
                 writer(file).writerow(header)
                 file.close()

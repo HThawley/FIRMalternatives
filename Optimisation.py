@@ -23,7 +23,7 @@ def ObjectiveWrapper(xs, costs, fileprinter):
 @keeptime('ObjectiveParallel')
 @njit(parallel=True)
 def ObjectiveParallel(xs, costs):
-    result = np.empty((len(xs), 15), dtype=np.float64)
+    result = np.empty((len(xs), 16), dtype=np.float64)
     for i in prange(len(xs)):
         result[i, :] = Objective(xs[i], costs)
     result = np.concatenate((result, xs), axis=1)
@@ -39,6 +39,7 @@ def Objective(x, costs):
         S.energyloss, # Energy served - transmission loss
         S.Penalties, # penalties
         S.GGas.sum() * S.resolution/S.years, # Gas GWh p.a.
+        100*S.GGas.sum() * S.resolution/S.years / (S.CGas.sum()*8760), # Gas CF
         (S.GHydro.sum() + S.GBio.sum() + S.CBaseload.sum()*S.intervals
          ) * S.resolution / S.years, # Flexible GWh p.a.
         S.GDischarge.sum() * S.resolution / S.years, # PHES GWh p.a.

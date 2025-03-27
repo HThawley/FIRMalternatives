@@ -6,7 +6,7 @@ from csv import writer
 
 from Input import * 
 from Costs import Raw_Costs 
-from Optimisation import Optimise
+from Optimisation import Optimise, Objective
 from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 from Fileprinter import Fileprinter
 
@@ -74,16 +74,16 @@ def calculate_distances(history, centroid):
 @njit
 def calculate_costs(history, costs):
     Lcoes = np.stack((
-        (history[:,7:14] * costs.hvdc.sum(axis=0)).sum(axis=1), # hvdc capex and fom 
-        history[:, 14:      14+pidx].sum(axis=1) * (costs.pv[0]   + costs.pv[1]   + costs.ac.sum()), # pv capex and fom
-        history[:, 14+pidx: 14+widx].sum(axis=1) * (costs.onsw[0] + costs.onsw[1] + costs.ac.sum()), # wind capex and fom
-        history[:, 14+widx: 14+gidx].sum(axis=1) * (costs.gas[0]  + costs.gas[1]  + costs.ac.sum()), # gas capex and fom
-        history[:, 14+gidx: 14+sidx].sum(axis=1) * (costs.phes[0] + costs.phes[2] ), # phes capex (power) and fom
-        history[:, 14+sidx] * costs.phes[1], # phes capex (energy)
+        (history[:,8:15] * costs.hvdc.sum(axis=0)).sum(axis=1), # hvdc capex and fom 
+        history[:, 15:      15+pidx].sum(axis=1) * (costs.pv[0]   + costs.pv[1]   + costs.ac.sum()), # pv capex and fom
+        history[:, 15+pidx: 15+widx].sum(axis=1) * (costs.onsw[0] + costs.onsw[1] + costs.ac.sum()), # wind capex and fom
+        history[:, 15+widx: 15+gidx].sum(axis=1) * (costs.gas[0]  + costs.gas[1]  + costs.ac.sum()), # gas capex and fom
+        history[:, 15+gidx: 15+sidx].sum(axis=1) * (costs.phes[0] + costs.phes[2] ), # phes capex (power) and fom
+        history[:, 15+sidx] * costs.phes[1], # phes capex (energy)
         
         history[:, 2] * costs.gas[2], # gas vom, fuel, and carbon
-        history[:, 3] * costs.hydro[2], # hydro vom
-        history[:, 4] * costs.phes[3], # phes vom
+        history[:, 4] * costs.hydro[2], # hydro vom
+        history[:, 5] * costs.phes[3], # phes vom
         )).sum(axis=0)
     Lcoes += costs.phes[4] 
     Lcoes += (CHydro.sum() + CBio.sum())*(costs.hydro[0] + costs.hydro[1] + costs.ac.sum()) # HydroBio fom
@@ -95,7 +95,15 @@ def calculate_costs(history, costs):
 
 if __name__ == '__main__':
     fileprinter = Fileprinter(f'Results/Paramsweep{scenario}.csv', 1, [
-        'carbon price', 'gas fuel', 'pv capex', 'wind capex', 'LCOE'] + list(range(len(lb))), 
+        'carbon price', 'gas fuel', 'pv capex', 'wind capex', 'LCOE'] + 
+        ['Energy', 'penalties', 'Gas GWh p.a.', 'Gas CF', 'Flexible GWh p.a.', 
+         'PHES Disch GWh p.a.', 'Spill GWh p.a.', 'Transm GWh p.a.', 
+         'FQ', 'NQ', 'NS', 'NV', 'AS', 'SW', 'TV',] +
+        [f'PV{n} GW' for n in range(pzones)]+
+        [f'Wind{n} GW' for n in range(pzones)]+
+        [f'Gas{n} GW' for n in range(nodes)]+
+        [f'Phes{n} GW' for n in range(nodes)]+
+        ['Phes GWh'],
         resume=bool(args.res))
     
     start = not bool(args.res)
@@ -138,6 +146,9 @@ if __name__ == '__main__':
                         i+=1
                         print(i, '/', 108)
                         result, t = Optimise(costs, init, x0, (disp_step, stag, stag_rate))
-                        fileprinter([[p,q,r,s,result.fun]+list(result.x)])
+                        
+                        stats = Objective(result.x, costs)
+                        
+                        fileprinter([[p,q,r,s,result.fun]+list(stats[1:])+list(result.x)])
     PrintTimekeeper(f'Results/Timekeep-ps-{scenario}.csv')
 
