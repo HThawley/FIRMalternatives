@@ -19,12 +19,20 @@ class Fileprinter:
         self.save_freq=save_freq
         self.callno = 0
         self.array = None
-        if resume is False and header is not None:
-            with open(self.file_name, 'w', newline='') as file:
-                writer(file).writerow(header)
-                file.close()
-                
-        
+        if header is not None: 
+            if resume is False:
+                self._createfile(header)
+            if resume is True:
+                try:
+                    copyfile(self.file_name, self.temp_file_path)
+                    remove(self.temp_file_path)
+                except FileNotFoundError:
+                    self._createfile(header)
+                  
+    def Terminate(self):
+        if self.array is not None:
+            self._flush()
+                      
     @keeptime('Manage file print')
     def __call__(self, arr):
         self.callno+=1     
@@ -64,6 +72,10 @@ class Fileprinter:
         print('\r'+' '*40, end='\r')
         self.array=None
     
-    def Terminate(self):
-        if self.array is not None:
-            self._flush()
+    def _createfile(self, header):
+        with open(self.file_name, 'w', newline='') as file:
+            writer(file).writerow(header)
+            file.close()
+    
+
+        
