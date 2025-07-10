@@ -56,7 +56,7 @@ def load_pce_model(filename):
         print(f"Error loading PCE model from {filename}: {e}")
         return None
 
-input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 1000000, nrows = 200000, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4000000, nrows = 200000, header=None).to_numpy()
     
 rng = np.random.default_rng()
 rng.shuffle(input_data)
@@ -129,11 +129,7 @@ print(f"RMSE: {rmse}")
 
 print("Starting SOBOL")
 
-# slice points out for fit
-num_points = input_data.shape[0] - (input_data.shape[0] % (input_data.shape[1]+2))
-print(num_points)
-sobol_data = input_data[:num_points, :]
-sobol_lcoes = lcoes[:num_points]
+
 
 
 # from numba import njit
@@ -234,12 +230,18 @@ def calculate_first_order_sobol(points, quantities):
 
     return sobol_indices
 
+# slice points out for fit
+num_points = input_data.shape[0] - (input_data.shape[0] % (input_data.shape[1]+2))
+print(num_points)
+sobol_data = input_data[:num_points, :]
+sobol_lcoes = lcoes[:num_points]
+
 sobol1 = calculate_first_order_sobol(sobol_data, sobol_lcoes)
 print(sobol1)
 
-num_points = predicted_test_outputs.shape[0] - (predicted_test_outputs.shape[0] % (predicted_test_outputs.shape[1]+2))
+num_points = test_input_data.shape[0] - (test_input_data.shape[0] % (test_input_data.shape[1]+2))
 print(num_points)
-sobol_data = predicted_test_outputs[:num_points, :]
+sobol_data = test_input_data[:num_points, :]
 sobol_lcoes = predicted_test_outputs[:num_points]
 
 sobol2 = calculate_first_order_sobol(sobol_data, sobol_lcoes)
