@@ -232,3 +232,4 @@ sobol = calculate_first_order_sobol(sobol_data, sobol_lcoes)
 print(sobol)
 
 sobol = calculate_first_order_sobol(sobol_data, predicted_outputs)
+print(sobol)
