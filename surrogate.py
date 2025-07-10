@@ -12,7 +12,7 @@ import chaospy as cp
 import os
 import pickle
 from time import perf_counter
-
+#%%
 from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
 from Costs import Raw_Costs 
 from Optimisation import Optimise, Objective
@@ -56,7 +56,7 @@ def load_pce_model(filename):
         print(f"Error loading PCE model from {filename}: {e}")
         return None
 
-input_data = pd.read_csv(CSV_FILE_PATH, nrows = 100000, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 1000000, nrows = 200000, header=None).to_numpy()
     
 rng = np.random.default_rng()
 rng.shuffle(input_data)
@@ -74,13 +74,11 @@ input_data = input_data[:cutoff, :]
 
 joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
 
-print("\nCalculating weights based on input data density (KDE)...")
-
 POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
 
 pce_model = None
-if os.path.exists(PCE_MODEL_FILENAME):
-    pce_model = load_pce_model(PCE_MODEL_FILENAME)
+# if os.path.exists(PCE_MODEL_FILENAME):
+    # pce_model = load_pce_model(PCE_MODEL_FILENAME)
 if False: 
     pass
 else: 
@@ -236,8 +234,15 @@ def calculate_first_order_sobol(points, quantities):
 
     return sobol_indices
 
-sobol = calculate_first_order_sobol(sobol_data, sobol_lcoes)
-print(sobol)
+sobol1 = calculate_first_order_sobol(sobol_data, sobol_lcoes)
+print(sobol1)
 
-sobol = calculate_first_order_sobol(sobol_data, predicted_outputs[:num_points])
-print(sobol)
+num_points = predicted_test_outputs.shape[0] - (predicted_test_outputs.shape[0] % (predicted_test_outputs.shape[1]+2))
+print(num_points)
+sobol_data = predicted_test_outputs[:num_points, :]
+sobol_lcoes = predicted_test_outputs[:num_points]
+
+sobol2 = calculate_first_order_sobol(sobol_data, sobol_lcoes)
+print(sobol2)
+
+print(sobol2/sobol1)
