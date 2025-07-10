@@ -11,6 +11,7 @@ import chaospy as cp
 # from scipy.stats import gaussian_kde # For Kernel Density Estimation
 import os
 import pickle
+from time import perf_counter
 
 from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
 from Costs import Raw_Costs 
@@ -55,9 +56,9 @@ def load_pce_model(filename):
         print(f"Error loading PCE model from {filename}: {e}")
         return None
 
-input_data = pd.read_csv(CSV_FILE_PATH, nrows = 20000, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, nrows = 100000, header=None).to_numpy()
     
-rng = np.random.default_rng(seed=1)
+rng = np.random.default_rng()
 rng.shuffle(input_data)
 
 lcoes = calculate_costs(input_data, costs)
@@ -80,9 +81,11 @@ POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
 pce_model = None
 if os.path.exists(PCE_MODEL_FILENAME):
     pce_model = load_pce_model(PCE_MODEL_FILENAME)
+if False: 
+    pass
 else: 
     print("Model file not found. Proceeding with training.")
-    
+    s = perf_counter()
     # 1. Generate the orthogonal polynomials for the given order and distribution
     # This creates the basis functions for the PCE.
     print("checkpoint1")
@@ -103,7 +106,8 @@ else:
     print("PCE model built successfully using Sparse Regression (LARS).")
     print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
     # Note: residuals from `fit_regression` are not directly available like `np.linalg.lstsq`
-
+    e = perf_counter()
+    print("took", e-s, "seconds to train on", len(input_data), "points")
     # --- Save the trained model ---
     print("checkpoint3")
     save_pce_model(pce_model, PCE_MODEL_FILENAME)
@@ -111,7 +115,7 @@ else:
     print("checkpoint4")
 
 predicted_test_outputs = pce_model(*test_input_data.T)
-from time import perf_counter
+
 s = perf_counter()
 predicted_outputs = pce_model(*input_data.T)
 e = perf_counter()
