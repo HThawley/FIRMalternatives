@@ -92,7 +92,7 @@ PCE_MODEL_FILENAME = 'pce_surrogate_model.pkl'
 #         print(f"Error loading PCE model from {filename}: {e}")
 #         return None
 
-input_data = pd.read_csv(CSV_FILE_PATH, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
     
 rng = np.random.default_rng()
 rng.shuffle(input_data)
