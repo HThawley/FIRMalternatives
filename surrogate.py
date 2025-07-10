@@ -102,20 +102,21 @@ print(f"\nBuilding PCE model with polynomial order {POLYNOMIAL_ORDER} using Weig
 
 # 1. Generate the orthogonal polynomials for the given order and distribution
 # This creates the basis functions for the PCE.
-print("line72")
+print("checkpoint1")
 polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
 
 # 2. Evaluate the polynomial basis at the input_data points to form the design matrix (Vandermonde matrix)
 # The design matrix 'A' will have shape (n_samples, n_terms)
 # where n_terms is the number of polynomials in the basis.
 # input_data is (n_samples, n_features), but `polynomial_basis` expects (n_features, n_samples)
-print("line79")
+print("checkpoint2")
 design_matrix = polynomial_basis(*input_data.T).T # Transpose input_data for evaluation, then transpose result
 
 # 3. Perform Weighted Least Squares (WLS)
 # We use the square root of weights for the WLS transformation.
 # This transforms the problem from min ||Ax - b||^2 to min ||WAx - Wb||^2
 # where W is a diagonal matrix with sqrt(weights) on the diagonal.
+print("checkpoint3")
 sqrt_weights = np.sqrt(weights)
 weighted_design_matrix = design_matrix * sqrt_weights[:, np.newaxis] # Apply weights row-wise
 weighted_qoi_data = qoi_data * sqrt_weights # Apply weights to output data
