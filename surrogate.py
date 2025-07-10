@@ -22,7 +22,7 @@ from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
 costs = raw_costs.CostFactors()
 
-CSV_FILE_PATH = r"Results\firmpoints.csv"
+CSV_FILE_PATH = "Results/firmpoints.csv"
 NUM_INPUTS = 50
 PCE_MODEL_FILENAME = 'pce_surrogate_model.pkl'
 
