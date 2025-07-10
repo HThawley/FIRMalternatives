@@ -227,4 +227,6 @@ def calculate_first_order_sobol(points, quantities):
 
     return sobol_indices
 
-sobol = calculate_first_order_sobol(sobol_lcoes, sobol_data)
+sobol = calculate_first_order_sobol(sobol_data, sobol_lcoes)
+
+print(sobol)
