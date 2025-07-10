@@ -125,33 +125,29 @@ print("checkpoint5")
 
 
 print("\nCalculating Sobol Indices for variance attribution...")
-raise KeyboardInterrupt()
-try:
+# raise KeyboardInterrupt()
     # Calculate first-order Sobol indices
-    sobol_first_order = cp.Sens_t(pce_model, joint_distribution)
-    print(f"\nFirst-order Sobol Indices (S1):\n{sobol_first_order}")
+sobol_first_order = cp.Sens_t(pce_model, joint_distribution)
+print(f"\nFirst-order Sobol Indices (S1):\n{sobol_first_order}")
 
-    # Calculate total-order Sobol indices
-    sobol_total_order = cp.Sens_t_squared(pce_model, joint_distribution)
-    print(f"\nTotal-order Sobol Indices (ST):\n{sobol_total_order}")
+# Calculate total-order Sobol indices
+sobol_total_order = cp.Sens_t_squared(pce_model, joint_distribution)
+print(f"\nTotal-order Sobol Indices (ST):\n{sobol_total_order}")
 
-    # You can also calculate higher-order interaction indices if needed:
-    # sobol_second_order = cp.Sens_t(pce_model, joint_distribution, order=2)
-    # print(f"\nSecond-order Sobol Indices (S2):\n{sobol_second_order}")
+# You can also calculate higher-order interaction indices if needed:
+# sobol_second_order = cp.Sens_t(pce_model, joint_distribution, order=2)
+# print(f"\nSecond-order Sobol Indices (S2):\n{sobol_second_order}")
 
-    # Interpretation:
-    # S1[i] represents the proportion of the output variance explained by the i-th input alone.
-    # ST[i] represents the proportion of the output variance explained by the i-th input
-    # and all its interactions with other inputs.
-    # If ST[i] >> S1[i], it indicates strong interactions involving input i.
+# Interpretation:
+# S1[i] represents the proportion of the output variance explained by the i-th input alone.
+# ST[i] represents the proportion of the output variance explained by the i-th input
+# and all its interactions with other inputs.
+# If ST[i] >> S1[i], it indicates strong interactions involving input i.
 
-    # Sum of S1 should be <= 1. Sum of ST can be > 1 if there are strong interactions.
-    print(f"\nSum of First-order Sobol Indices: {np.sum(sobol_first_order):.4f}")
-    print(f"Sum of Total-order Sobol Indices: {np.sum(sobol_total_order):.4f}")
-
-except Exception as e:
-    print(f"An error occurred while calculating Sobol indices: {e}")
-    print("Ensure the PCE model was built correctly and distributions are well-defined.")
-
+# Sum of S1 should be <= 1. Sum of ST can be > 1 if there are strong interactions.
+print(f"\nSum of First-order Sobol Indices: {np.sum(sobol_first_order):.4f}")
+print(f"Sum of Total-order Sobol Indices: {np.sum(sobol_total_order):.4f}")
+print("Sobol indices:", sobol_first_order)
+    
 print("\n--- Outline Complete ---")
 print("This version uses weighted least squares to prioritize regions with higher data density.")
