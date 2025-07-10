@@ -53,9 +53,13 @@ def load_pce_model(filename):
     except Exception as e:
         print(f"Error loading PCE model from {filename}: {e}")
         return None
-
-input_data = pd.read_csv(CSV_FILE_PATH, nrows = 20000, header=None).to_numpy()
-
+try:
+    input_data = pd.read_csv(CSV_FILE_PATH, nrows = 20000, header=None).to_numpy()
+except FileNotFoundError as e:
+    import os
+    print(os.getcwd())
+    raise e
+    
 rng = np.random.default_rng()
 rng.shuffle(input_data)
 
