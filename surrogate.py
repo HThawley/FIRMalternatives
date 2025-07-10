@@ -56,7 +56,7 @@ def load_pce_model(filename):
         print(f"Error loading PCE model from {filename}: {e}")
         return None
 
-input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4000000, nrows = 20000, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, header=None).to_numpy()
     
 rng = np.random.default_rng()
 rng.shuffle(input_data)
@@ -74,7 +74,7 @@ input_data = input_data[:cutoff, :]
 
 joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
 
-POLYNOMIAL_ORDER = 3 # You might need to experiment with this value
+POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
 
 pce_model = None
 # if os.path.exists(PCE_MODEL_FILENAME):
@@ -94,7 +94,6 @@ else:
     # avoiding the explicit construction of a large dense design matrix and the
     # memory issues associated with `cp.sum` of a full basis.
     print("checkpoint2")
-    print("Fitting PCE model using cp.fit_regression(method='LARS')...")
     pce_model = cp.fit_regression(
         polynomials=polynomial_basis,
         abscissas=input_data.T, # raw_data expects (n_features, n_samples)
