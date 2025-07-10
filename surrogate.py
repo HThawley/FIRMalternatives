@@ -123,7 +123,7 @@ print(f"RMSE: {rmse}")
 print("Starting SOBOL")
 
 # slice points out for fit
-num_points = input_data.shape[0] - (input_data.shape[0] % input_data.shape[1])
+num_points = input_data.shape[0] - (input_data.shape[0] % (input_data.shape[1]+2))
 print(num_points)
 sobol_data = input_data[:num_points, :]
 sobol_lcoes = lcoes[:num_points]
