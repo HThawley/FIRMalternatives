@@ -9,8 +9,9 @@ import numpy as np
 import pandas as pd
 import chaospy as cp
 from scipy.stats import gaussian_kde # For Kernel Density Estimation
+import pickle
 
-from Input import * 
+from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
 from Costs import Raw_Costs 
 from Optimisation import Optimise, Objective
 from ParameterSweep import calculate_costs
@@ -23,7 +24,6 @@ raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
 costs = raw_costs.CostFactors()
 
 CSV_FILE_PATH = "Results/firmpoints.csv"
-NUM_INPUTS = 50
 PCE_MODEL_FILENAME = 'pce_surrogate_model.pkl'
 
 
@@ -123,12 +123,17 @@ weighted_qoi_data = qoi_data * sqrt_weights # Apply weights to output data
 
 # Solve for the coefficients using numpy's least squares solver
 # `rcond=None` is used to suppress a future warning about default value changes.
+print("checkpoint4")
+
 pce_coefficients, residuals, rank, s = np.linalg.lstsq(weighted_design_matrix, weighted_qoi_data, rcond=None)
+print("checkpoint5")
 
 # 4. Construct the chaospy polynomial from the calculated coefficients
 pce_model = cp.sum(polynomial_basis * pce_coefficients[:, np.newaxis])
 # Note: cp.sum(polynomials * coefficients) is the way to create the final polynomial.
 # The `[:, np.newaxis]` is important if coefficients is a 1D array to enable broadcasting.
+print("checkpoint6")
+
 
 print("PCE model built successfully using Weighted Least Squares.")
 print(f"Number of terms in PCE: {len(pce_coefficients)}")
@@ -143,8 +148,8 @@ print("\nUsing the surrogate model for prediction...")
 # Predict the output using the PCE model
 predicted_outputs = pce_model(*test_input_data)
 
-print(f"New input samples (transposed for display):\n{new_input_samples.T}")
-print(f"Predicted outputs:\n{predicted_outputs}")
+# print(f"New input samples (transposed for display):\n{new_input_samples.T}")
+# print(f"Predicted outputs:\n{predicted_outputs}")
 
 # --- Step 5: Calculate Variance Attributable to Each Input (Sobol Indices) ---
 # This directly addresses your requirement to maintain the variance attributable to each input.
