@@ -110,12 +110,13 @@ else:
     
     print("checkpoint4")
 
-predicted_outputs = pce_model(*test_input_data.T)
+predicted_test_outputs = pce_model(*test_input_data.T)
+predicted_outputs = pce_model(*input_data.T)
 
 def RMSE(arr1, arr2):
     return np.mean((arr1-arr2)**2)**0.5
 
-rmse = RMSE(predicted_outputs,test_qoi_data)
+rmse = RMSE(predicted_test_outputs,test_qoi_data)
     
 print(f"RMSE: {rmse}")
 
@@ -228,5 +229,6 @@ def calculate_first_order_sobol(points, quantities):
     return sobol_indices
 
 sobol = calculate_first_order_sobol(sobol_data, sobol_lcoes)
-
 print(sobol)
+
+sobol = calculate_first_order_sobol(sobol_data, predicted_outputs)
