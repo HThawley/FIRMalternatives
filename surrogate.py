@@ -8,7 +8,8 @@ Created on Thu Jul 10 09:22:27 2025
 import numpy as np
 import pandas as pd
 import chaospy as cp
-from scipy.stats import gaussian_kde # For Kernel Density Estimation
+# from scipy.stats import gaussian_kde # For Kernel Density Estimation
+import os
 import pickle
 
 from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
@@ -53,14 +54,10 @@ def load_pce_model(filename):
     except Exception as e:
         print(f"Error loading PCE model from {filename}: {e}")
         return None
-try:
-    input_data = pd.read_csv(CSV_FILE_PATH, nrows = 20000, header=None).to_numpy()
-except FileNotFoundError as e:
-    import os
-    print(os.getcwd())
-    raise e
+
+input_data = pd.read_csv(CSV_FILE_PATH, nrows = 20000, header=None).to_numpy()
     
-rng = np.random.default_rng()
+rng = np.random.default_rng(seed=1)
 rng.shuffle(input_data)
 
 lcoes = calculate_costs(input_data, costs)
@@ -78,83 +75,55 @@ joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
 
 print("\nCalculating weights based on input data density (KDE)...")
 
-
-# Use Kernel Density Estimation (KDE) to estimate the density of input data.
-# The 'bw_method' can be 'scott', 'silverman', or a scalar. Experiment if needed.
-# input_data needs to be (n_features, n_samples) for KDE.
-kde = gaussian_kde(input_data.T)
-
-# Evaluate KDE at each training data point to get its density
-densities = kde(input_data.T)
-
-# Use densities as weights. Normalize them for better numerical stability.
-# A common normalization is to make them sum to the number of samples.
-weights = densities / np.sum(densities) * len(densities)
-
-
-# ---Build the PCE Surrogate Model using Weighted Least Squares ---
-# Choose the polynomial order. Higher order captures more non-linearity but increases complexity.
-# For 50 inputs, a low order (e.g., 1 or 2) is often a good starting point,
-# especially with sparse PCE.
 POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
 
-print(f"\nBuilding PCE model with polynomial order {POLYNOMIAL_ORDER} using Weighted Least Squares...")
+pce_model = None
+if os.path.exists(PCE_MODEL_FILENAME):
+    pce_model = load_pce_model(PCE_MODEL_FILENAME)
+else: 
+    print("Model file not found. Proceeding with training.")
+    
+    # 1. Generate the orthogonal polynomials for the given order and distribution
+    # This creates the basis functions for the PCE.
+    print("checkpoint1")
+    polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
 
-# 1. Generate the orthogonal polynomials for the given order and distribution
-# This creates the basis functions for the PCE.
-print("checkpoint1")
-polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
+    # 2. Fit the PCE model using `chaospy.fit_regression` with LARS method.
+    # This method internally handles the basis evaluation and sparse coefficient selection,
+    # avoiding the explicit construction of a large dense design matrix and the
+    # memory issues associated with `cp.sum` of a full basis.
+    print("checkpoint2")
+    print("Fitting PCE model using cp.fit_regression(method='LARS')...")
+    pce_model = cp.fit_regression(
+        polynomials=polynomial_basis,
+        raw_data=input_data.T, # raw_data expects (n_features, n_samples)
+        retall=qoi_data,
+        method='LARS' # Use Least Angle Regression for sparse fitting
+    )
+    print("PCE model built successfully using Sparse Regression (LARS).")
+    print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
+    # Note: residuals from `fit_regression` are not directly available like `np.linalg.lstsq`
 
-# 2. Evaluate the polynomial basis at the input_data points to form the design matrix (Vandermonde matrix)
-# The design matrix 'A' will have shape (n_samples, n_terms)
-# where n_terms is the number of polynomials in the basis.
-# input_data is (n_samples, n_features), but `polynomial_basis` expects (n_features, n_samples)
-print("checkpoint2")
-design_matrix = polynomial_basis(*input_data.T).T # Transpose input_data for evaluation, then transpose result
+    # --- Save the trained model ---
+    print("checkpoint3")
+    save_pce_model(pce_model, PCE_MODEL_FILENAME)
+    
+    print("checkpoint4")
 
-# 3. Perform Weighted Least Squares (WLS)
-# We use the square root of weights for the WLS transformation.
-# This transforms the problem from min ||Ax - b||^2 to min ||WAx - Wb||^2
-# where W is a diagonal matrix with sqrt(weights) on the diagonal.
-print("checkpoint3")
-sqrt_weights = np.sqrt(weights)
-weighted_design_matrix = design_matrix * sqrt_weights[:, np.newaxis] # Apply weights row-wise
-weighted_qoi_data = qoi_data * sqrt_weights # Apply weights to output data
+predicted_outputs = pce_model(*test_input_data.T)
 
-# Solve for the coefficients using numpy's least squares solver
-# `rcond=None` is used to suppress a future warning about default value changes.
-print("checkpoint4")
+def RMSE(arr1, arr2):
+    return np.mean((arr1-arr2)**2)**0.5
 
-pce_coefficients, residuals, rank, s = np.linalg.lstsq(weighted_design_matrix, weighted_qoi_data, rcond=None)
+rmse = RMSE(predicted_outputs,test_qoi_data)
+    
+print(f"RMSE: {rmse}")
+
+
+
 print("checkpoint5")
 
-# 4. Construct the chaospy polynomial from the calculated coefficients
-pce_model = cp.sum(polynomial_basis * pce_coefficients[:, np.newaxis])
-# Note: cp.sum(polynomials * coefficients) is the way to create the final polynomial.
-# The `[:, np.newaxis]` is important if coefficients is a 1D array to enable broadcasting.
-print("checkpoint6")
 
-
-print("PCE model built successfully using Weighted Least Squares.")
-print(f"Number of terms in PCE: {len(pce_coefficients)}")
-print(f"Residuals from WLS: {residuals}") # Lower residuals indicate a better fit (weighted)
-
-
-# --- Step 4: Use the Surrogate Model for Prediction ---
-print("\nUsing the surrogate model for prediction...")
-
-# Generate new input points for prediction (e.g., a few random samples)
-
-# Predict the output using the PCE model
-predicted_outputs = pce_model(*test_input_data)
-
-# print(f"New input samples (transposed for display):\n{new_input_samples.T}")
-# print(f"Predicted outputs:\n{predicted_outputs}")
-
-# --- Step 5: Calculate Variance Attributable to Each Input (Sobol Indices) ---
-# This directly addresses your requirement to maintain the variance attributable to each input.
-# First-order Sobol indices (S1) quantify the main effect of each input.
-# Total-order Sobol indices (ST) quantify the main effect plus all interactions involving that input.
 print("\nCalculating Sobol Indices for variance attribution...")
 raise KeyboardInterrupt()
 try:
