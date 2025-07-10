@@ -56,7 +56,7 @@ def load_pce_model(filename):
         print(f"Error loading PCE model from {filename}: {e}")
         return None
 
-input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4000000, nrows = 200000, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4000000, nrows = 20000, header=None).to_numpy()
     
 rng = np.random.default_rng()
 rng.shuffle(input_data)
@@ -74,7 +74,7 @@ input_data = input_data[:cutoff, :]
 
 joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
 
-POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
+POLYNOMIAL_ORDER = 3 # You might need to experiment with this value
 
 pce_model = None
 # if os.path.exists(PCE_MODEL_FILENAME):
