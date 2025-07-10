@@ -8,6 +8,7 @@ Created on Thu Jul 10 09:22:27 2025
 import numpy as np
 import pandas as pd
 import chaospy as cp
+from sklearn import linear_model as lm
 # from scipy.stats import gaussian_kde # For Kernel Density Estimation
 import os
 import pickle
@@ -29,32 +30,67 @@ CSV_FILE_PATH = "Results/firmpoints.csv"
 PCE_MODEL_FILENAME = 'pce_surrogate_model.pkl'
 
 
-def save_pce_model(pce_model_to_save, filename):
-    """
-    Saves the trained Chaospy PCE model to a file using pickle.
-    """
-    try:
-        with open(filename, 'wb') as f:
-            pickle.dump(pce_model_to_save, f)
-        print(f"PCE model successfully saved to {filename}")
-    except Exception as e:
-        print(f"Error saving PCE model to {filename}: {e}")
+# class PCEmodel:
+#     def __init__(self, coefficients=None, metadata=None):
+        
+#         if coefficients is not None and metadata is not None:
+#             if not isinstance(coefficients, np.ndarray):
+#                 raise TypeError("Coefficients must be a NumPy array.")
+#             if not isinstance(metadata, dict):
+#                 raise TypeError("Metadata must be a dictionary.")
+            
+#             self.coefficients = coefficients
+#             self.metadata = metadata
+#             self._is_trained = True
+#             self._parse_metadata()
+            
+#         else: 
+#             self.coefficents = None
+#             self.metadata = {}
+#             self._is_trained = False
+#             self.num_inputs = 0
+            
+#     def _parse_metadata(self):
+#         self.polynomial_order = self.metadata.get("polynomial_order")
+#         self.basis_type = self.metadata.get("basis_type")
+#         self.input_variables = self.metadata.get("input_variables")
+#         self.truncation_rule = self.metadata.get("truncation_rule")
+#         self.multi_indices = self.metadata.get("multi_indices")
+#         # self.num_inputs = self.metadata.get("num_inputs")
+        
+#     def train(self, X, Y, bounds, polynomial_order=2, )
+#         self.lb, self.ub = bounds
+#         joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
+#         polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
 
-def load_pce_model(filename):
-    """
-    Loads a Chaospy PCE model from a file using pickle.
-    """
-    try:
-        with open(filename, 'rb') as f:
-            loaded_model = pickle.load(f)
-        print(f"PCE model successfully loaded from {filename}")
-        return loaded_model
-    except FileNotFoundError:
-        print(f"Error: Model file not found at {filename}. Please ensure it exists.")
-        return None
-    except Exception as e:
-        print(f"Error loading PCE model from {filename}: {e}")
-        return None
+        
+
+# def save_pce_model(pce_model_to_save, filename):
+#     """
+#     Saves the trained Chaospy PCE model to a file using pickle.
+#     """
+#     try:
+#         with open(filename, 'wb') as f:
+#             pickle.dump(pce_model_to_save, f)
+#         print(f"PCE model successfully saved to {filename}")
+#     except Exception as e:
+#         print(f"Error saving PCE model to {filename}: {e}")
+
+# def load_pce_model(filename):
+#     """
+#     Loads a Chaospy PCE model from a file using pickle.
+#     """
+#     try:
+#         with open(filename, 'rb') as f:
+#             loaded_model = pickle.load(f)
+#         print(f"PCE model successfully loaded from {filename}")
+#         return loaded_model
+#     except FileNotFoundError:
+#         print(f"Error: Model file not found at {filename}. Please ensure it exists.")
+#         return None
+#     except Exception as e:
+#         print(f"Error loading PCE model from {filename}: {e}")
+#         return None
 
 input_data = pd.read_csv(CSV_FILE_PATH, header=None).to_numpy()
     
@@ -76,40 +112,34 @@ joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
 
 POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
 
-pce_model = None
-# if os.path.exists(PCE_MODEL_FILENAME):
-    # pce_model = load_pce_model(PCE_MODEL_FILENAME)
-if False: 
-    pass
-else: 
-    print("Model file not found. Proceeding with training.")
-    s = perf_counter()
-    # 1. Generate the orthogonal polynomials for the given order and distribution
-    # This creates the basis functions for the PCE.
-    print("checkpoint1")
-    polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
+s = perf_counter()
+# 1. Generate the orthogonal polynomials for the given order and distribution
+# This creates the basis functions for the PCE.
+print("checkpoint1")
+polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
 
-    # 2. Fit the PCE model using `chaospy.fit_regression` with LARS method.
-    # This method internally handles the basis evaluation and sparse coefficient selection,
-    # avoiding the explicit construction of a large dense design matrix and the
-    # memory issues associated with `cp.sum` of a full basis.
-    print("checkpoint2")
-    pce_model = cp.fit_regression(
-        polynomials=polynomial_basis,
-        abscissas=input_data.T, # raw_data expects (n_features, n_samples)
-        evals=qoi_data,
-        # model='LARS' # Use Least Angle Regression for sparse fitting
-    )
-    print("PCE model built successfully using Sparse Regression (LARS).")
-    print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
-    # Note: residuals from `fit_regression` are not directly available like `np.linalg.lstsq`
-    e = perf_counter()
-    print("took", e-s, "seconds to train on", len(input_data), "points")
-    # --- Save the trained model ---
-    print("checkpoint3")
-    save_pce_model(pce_model, PCE_MODEL_FILENAME)
-    
-    print("checkpoint4")
+# 2. Fit the PCE model using `chaospy.fit_regression` with LARS method.
+# This method internally handles the basis evaluation and sparse coefficient selection,
+# avoiding the explicit construction of a large dense design matrix and the
+# memory issues associated with `cp.sum` of a full basis.
+print("checkpoint2")
+pce_model = cp.fit_regression(
+    polynomials=polynomial_basis,
+    abscissas=input_data.T, # raw_data expects (n_features, n_samples)
+    evals=qoi_data,
+    model=lm.Lars(fit_intercept=False)
+    # model='LARS' # Use Least Angle Regression for sparse fitting
+)
+print("PCE model built successfully using Sparse Regression (LARS).")
+print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
+# Note: residuals from `fit_regression` are not directly available like `np.linalg.lstsq`
+e = perf_counter()
+print("took", e-s, "seconds to train on", len(input_data), "points")
+# --- Save the trained model ---
+print("checkpoint3")
+# save_pce_model(pce_model, PCE_MODEL_FILENAME)
+
+print("checkpoint4")
 
 predicted_test_outputs = pce_model(*test_input_data.T)
 
