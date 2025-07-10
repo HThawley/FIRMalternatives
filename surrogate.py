@@ -96,9 +96,9 @@ else:
     print("Fitting PCE model using cp.fit_regression(method='LARS')...")
     pce_model = cp.fit_regression(
         polynomials=polynomial_basis,
-        raw_data=input_data.T, # raw_data expects (n_features, n_samples)
-        retall=qoi_data,
-        method='LARS' # Use Least Angle Regression for sparse fitting
+        abscissas=input_data.T, # raw_data expects (n_features, n_samples)
+        evals=qoi_data,
+        model='LARS' # Use Least Angle Regression for sparse fitting
     )
     print("PCE model built successfully using Sparse Regression (LARS).")
     print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
