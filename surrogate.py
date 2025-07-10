@@ -111,7 +111,11 @@ else:
     print("checkpoint4")
 
 predicted_test_outputs = pce_model(*test_input_data.T)
+from time import perf_counter
+s = perf_counter()
 predicted_outputs = pce_model(*input_data.T)
+e = perf_counter()
+print((e-s)/len(input_data))
 
 def RMSE(arr1, arr2):
     return np.mean((arr1-arr2)**2)**0.5
