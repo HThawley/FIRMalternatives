@@ -98,7 +98,7 @@ else:
         polynomials=polynomial_basis,
         abscissas=input_data.T, # raw_data expects (n_features, n_samples)
         evals=qoi_data,
-        model='LARS' # Use Least Angle Regression for sparse fitting
+        # model='LARS' # Use Least Angle Regression for sparse fitting
     )
     print("PCE model built successfully using Sparse Regression (LARS).")
     print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
