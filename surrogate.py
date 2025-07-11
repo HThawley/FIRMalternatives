@@ -115,10 +115,10 @@ class PCEmodel:
         input = self.preprocess(input)
         joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
         if verbose: 
-            print("Creating polynomial basis... | Time:", dt.now())
+            print("Creating polynomial basis...   | Time:", dt.now())
         polynomial_basis = cp.expansion.stieltjes(self.polynomial_order, joint_distribution)
         if verbose: 
-            print("Fitting Model... | Time:", dt.now())
+            print("Fitting Model...               | Time:", dt.now())
         self.model = cp.fit_regression(
             polynomials=polynomial_basis,
             abscissas=input.T, 
@@ -127,7 +127,7 @@ class PCEmodel:
             )
         self._is_trained = True
         if verbose: 
-            print("Finished Succesfully. | Time:", dt.now())
+            print("Finished Succesfully.          | Time:", dt.now())
             print("Took:", dt.now() - start)
 
     def predict(
@@ -205,7 +205,7 @@ remove existing file. Current model saved as "tmp.json" """)
         names = tuple(metadata.get("names"))
         
         if verbose: 
-            print("Creating Model... | Time:", dt.now())
+            print("Creating Model...     | Time:", dt.now())
             
         self.model = cp.polynomial_from_attributes(
             exponents = exponents,
@@ -230,7 +230,12 @@ def rmse(arr1, arr2):
 if __name__=="__main__":
     CSV_FILE_PATH = "Results/firmpoints.csv"
     
-    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
+    input_data = pd.read_csv(
+        CSV_FILE_PATH, 
+        skiprows = 0,
+        nrows=20_000, 
+        header=None
+        ).to_numpy()
         
     rng = np.random.default_rng(seed=1)
     rng.shuffle(input_data)
