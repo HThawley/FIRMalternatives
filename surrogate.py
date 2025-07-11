@@ -232,11 +232,14 @@ if __name__=="__main__":
     
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
-        skiprows = 4_000_000,
-        nrows=20_000, 
+        # skiprows = 4_000_000,
+        # nrows=20_000, 
         header=None
         ).to_numpy()
         
+    input_data = input_data[::10, :]
+    print(input_data.shape)
+    og_shape = input_data.shape
     rng = np.random.default_rng(seed=1)
     rng.shuffle(input_data)
     
@@ -251,13 +254,13 @@ if __name__=="__main__":
     train_output = lcoes[:cutoff]
     train_input = input_data[:cutoff, :]
     
-    if os.path.exists("pce.json"):
-        model = PCEmodel("pce")
+    if os.path.exists("pce-large.json"):
+        model = PCEmodel("pce-large")
     else:
         model = PCEmodel()
         model.train(train_input, train_output, (lb, ub), 3)
         
-    model.save_model("pce")
+    model.save_model("pce-large")
 
     pred_train_output = model.predict(train_input)
     try: 
@@ -273,9 +276,10 @@ if __name__=="__main__":
     except: 
         test_score = 0.0
     test_mse = model.score(test_output, pred_test_output, "mean_squared_error")
-    test_rmse = rmse(train_output, pred_train_output)
+    test_rmse = rmse(test_output, pred_test_output)
     
     print(f"""
+         {og_shape}
     Poisson deviation:
         score on training dataset: {train_score} / 1.0
         score on testing dataset: {test_score} / 1.0
