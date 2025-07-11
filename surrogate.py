@@ -165,10 +165,11 @@ class PCEmodel:
             "method" : self.method,
             "num_inputs" : self.num_inputs,
             "scaler_mean" : self.scaler_mean.tolist(),
-            "scaler_scale" : self.scaler_scale,
+            "scaler_scale" : self.scaler_scale.tolist(),
             }
         for v in metadata.values():
             assert v is not None, "Cannot save an untrained model"
+            print(type(v))
         if overwrite is False:
             if os.path.exists(filepath):
                 os.mkdir("tmp_model_save")
@@ -199,7 +200,7 @@ remove existing file. Current model saved in folder "tmp_model_save""")
         self.method = metadata.get("method")
         self.num_inputs = metadata.get("num_inputs")
         self.scaler_mean = np.array(metadata.get("scaler_mean"))
-        self.scaler_scale = metadata.get("scaler_scale")
+        self.scaler_scale = np.array(metadata.get("scaler_scale"))
         
         joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
         if verbose: 
