@@ -242,7 +242,7 @@ if os.path.exists("pce.json"):
     model = PCEmodel("pce")
 else:
     model = PCEmodel()
-    model.train(train_input)
+    model.train(train_input, train_output, (lb, ub))
     
 model.save_model("pce")
 
