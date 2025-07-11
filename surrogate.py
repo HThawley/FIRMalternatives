@@ -255,7 +255,7 @@ if __name__=="__main__":
         model = PCEmodel("pce")
     else:
         model = PCEmodel()
-        model.train(train_input, train_output, (lb, ub))
+        model.train(train_input, train_output, (lb, ub), 3)
         
     model.save_model("pce")
 
