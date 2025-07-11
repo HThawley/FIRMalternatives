@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_poisson_deviance, mean_squared_error
 from numba import njit
 import json
+from numpoly import ndpoly
 # from scipy.stats import gaussian_kde # For Kernel Density Estimation
 import os
 import pickle
@@ -203,7 +204,7 @@ remove existing file. Current model saved as "tmp.json" """)
         if verbose: 
             print("Creating Model... | Time:", dt.now())
             
-        self.model = cp.polynomial(
+        self.model = ndpoly(
             exponents = exponents,
             coefficients = coefficients, 
             names = names,
@@ -228,7 +229,7 @@ if __name__=="__main__":
     
     input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=100, header=None).to_numpy()
         
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed=1)
     rng.shuffle(input_data)
     
     lcoes = calculate_costs(input_data, costs)
