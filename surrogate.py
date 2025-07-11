@@ -80,7 +80,7 @@ class PCEmodel:
             self, 
             input, 
             ):
-        input = normalize(input, self.lb, self.ub)
+        # input = normalize(input, self.lb, self.ub)
         scaler = self._create_scaler(input)
         # input = scaler.transform(input)
         return input
