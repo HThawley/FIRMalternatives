@@ -129,7 +129,7 @@ class PCEmodel:
         self.coefficients = self.model.coefficients
         self._is_trained = True
         if verbose: 
-            print("Finished Succesfully | Time:", dt.now())
+            print("Finished Succesfully. | Time:", dt.now())
             print("Took:", dt.now() - start)
 
     def predict(
@@ -221,7 +221,7 @@ def rmse(arr1, arr2):
 if __name__=="__main__":
     CSV_FILE_PATH = "Results/firmpoints.csv"
     
-    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=10, header=None).to_numpy()
+    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
         
     rng = np.random.default_rng()
     rng.shuffle(input_data)
@@ -244,15 +244,15 @@ if __name__=="__main__":
         model.train(train_input.T, train_output, (lb, ub))
         
     model.save_model("pce")
-    
-    pred_train_output = model.predict(train_input.T)
+
+    pred_train_output = model.predict(train_input)
     train_score = model.score(train_output, pred_train_output)
     train_mse = model.score(train_output, pred_train_output, "mean_squared_error")
     train_rmse = rmse(train_output, pred_train_output)
     
-    pred_test_output = model.predict(test_input.T)
+    pred_test_output = model.predict(test_input)
     test_score = model.score(test_output, pred_test_output)
-    test_mse = model.score(train_output, pred_train_output, "mean_squared_error")
+    test_mse = model.score(test_output, pred_test_output, "mean_squared_error")
     test_rmse = rmse(train_output, pred_train_output)
     
     print("""
@@ -267,9 +267,6 @@ if __name__=="__main__":
         score on testing dataset: {test_rmse}
         mean of (test + train) outputs: {np.mean(lcoes)}
         """)
-    
-    
-    
     
     print("Starting sobol")
     
