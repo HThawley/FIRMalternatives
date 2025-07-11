@@ -107,7 +107,6 @@ class PCEmodel:
         
         if self.method == "lars":
             method = lm.Lars(fit_intercept=False)
-            #TODO: add options
         
         start = dt.now()
         if verbose:
@@ -231,7 +230,7 @@ def rmse(arr1, arr2):
 if __name__=="__main__":
     CSV_FILE_PATH = "Results/firmpoints.csv"
     
-    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=100, header=None).to_numpy()
+    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
         
     rng = np.random.default_rng(seed=1)
     rng.shuffle(input_data)
