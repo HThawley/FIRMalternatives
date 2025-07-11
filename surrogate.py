@@ -125,7 +125,7 @@ class PCEmodel:
             print("Fitting Model... | Time:", dt.now())
         self.model = cp.fit_regression(
             polynomials=polynomial_basis,
-            abscissas=input.T, # raw_data expects (n_features, n_samples)
+            abscissas=input, # raw_data expects (n_features, n_samples)
             evals=output,
             model=lm.Lars(fit_intercept=False), 
             )
