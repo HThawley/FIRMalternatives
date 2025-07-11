@@ -161,9 +161,9 @@ class PCEmodel:
             "num_inputs" : self.num_inputs,
             "scaler_mean" : self.scaler_mean.tolist(),
             "scaler_scale" : self.scaler_scale.tolist(),
-            "exponents" : self.model.exponents.tolist(),
-            "coefficients" : self.model.coefficients.tolist(),
-            "names" : self.model.names.tolist(),
+            "exponents" : self.model.exponents,
+            "coefficients" : self.model.coefficients,
+            "names" : self.model.names,
             }
         for k, v in metadata.items():
             assert v is not None, "Cannot save an untrained model. ({k} is None)"
@@ -186,7 +186,7 @@ remove existing file. Current model saved as "tmp.json" """)
             ):
         start = dt.now()
         if verbose: 
-            print("Reading save files... | Time:", dt.now())
+            print("Reading save file... | Time:", dt.now())
         with open(filepath+".json", "r") as f:
             metadata = json.load(f)
     
@@ -196,9 +196,9 @@ remove existing file. Current model saved as "tmp.json" """)
         self.scaler_mean = np.array(metadata.get("scaler_mean"))
         self.scaler_scale = np.array(metadata.get("scaler_scale"))
         
-        exponents = np.array(metadata.get("exponents"))
-        coefficients = np.array(metadata.get("coefficients"))
-        names = np.array(metadata.get("names"))
+        exponents = metadata.get("exponents")
+        coefficients = metadata.get("coefficients")
+        names = metadata.get("names")
         
         if verbose: 
             print("Creating Model... | Time:", dt.now())
