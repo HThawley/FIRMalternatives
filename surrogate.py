@@ -198,7 +198,7 @@ remove existing file. Current model saved as "tmp.json" """)
         self.scaler_scale = np.array(metadata.get("scaler_scale"))
         
         exponents = np.array(metadata.get("exponents"))
-        coefficients = metadata.get("coefficients")
+        coefficients = np.array(metadata.get("coefficients"))
         names = tuple(metadata.get("names"))
         
         if verbose: 
@@ -206,9 +206,9 @@ remove existing file. Current model saved as "tmp.json" """)
             
         self.model = ndpoly(
             exponents = exponents,
-            coefficients = coefficients, 
             names = names,
             )
+        self.model.coefficients = coefficients 
         self._is_trained=True
         if verbose: 
             print("Finished Succesfully. | Time:", dt.now())
