@@ -31,9 +31,6 @@ np.set_printoptions(suppress=True)
 raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
 costs = raw_costs.CostFactors()
 
-CSV_FILE_PATH = "Results/firmpoints.csv"
-
-
 class PCEmodel:
     def __init__(
             self, 
@@ -169,7 +166,6 @@ class PCEmodel:
             }
         for v in metadata.values():
             assert v is not None, "Cannot save an untrained model"
-            print(type(v))
         if overwrite is False:
             if os.path.exists(filepath):
                 os.mkdir("tmp_model_save")
@@ -193,7 +189,7 @@ remove existing file. Current model saved in folder "tmp_model_save""")
         if verbose: 
             print("Reading save files... | Time:", dt.now())
         with open(filepath+".json", "r") as f:
-            metadata = json.load(f, indent=4)
+            metadata = json.load(f)
         self.coefficents = np.load(filepath+".npy", False)
     
         self.polynomial_order = metadata.get("polynomial_order")
@@ -224,6 +220,8 @@ def rmse(arr1, arr2):
     return np.mean((arr1-arr2)**2)**0.5
 
 if __name__=="__main__":
+    CSV_FILE_PATH = "Results/firmpoints.csv"
+    
     input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=10, header=None).to_numpy()
         
     rng = np.random.default_rng()
