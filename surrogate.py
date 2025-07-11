@@ -42,7 +42,7 @@ class PCEmodel:
             self._is_trained = True
             
         else: 
-            self.coefficents = None
+            self.coefficients = None
             self.polynomial_order = None
             self.method = None
             self.scaler_mean = None
@@ -171,13 +171,13 @@ class PCEmodel:
                 os.mkdir("tmp_model_save")
                 with open("tmp_model_save/tmp.json", "w") as f:
                     json.dump(metadata, f, indent=4)
-                np.save("tmp_model_save/tmp.npy", self.coefficents, False)
+                np.save("tmp_model_save/tmp.npy", self.coefficients, False)
                 raise Exception(
 """Cannot overwrite existing saved model. Pass "`overwrite = True` or 
 remove existing file. Current model saved in folder "tmp_model_save""")
         with open(filepath+".json", "w") as f:
             json.dump(metadata, f, indent=4)
-        np.save(filepath+".npy", self.coefficents.astype(float), False)
+        np.save(filepath+".npy", self.coefficients.astype(float), False)
 
     
     def load_model(
@@ -190,7 +190,7 @@ remove existing file. Current model saved in folder "tmp_model_save""")
             print("Reading save files... | Time:", dt.now())
         with open(filepath+".json", "r") as f:
             metadata = json.load(f)
-        self.coefficents = np.load(filepath+".npy", False)
+        self.coefficients = np.load(filepath+".npy", False)
     
         self.polynomial_order = metadata.get("polynomial_order")
         self.method = metadata.get("method")
