@@ -258,7 +258,7 @@ if __name__=="__main__":
         model = PCEmodel("pce-large")
     else:
         model = PCEmodel()
-        model.train(train_input, train_output, (lb, ub), 3)
+        model.train(train_input, train_output, (lb, ub))
         
     model.save_model("pce-large")
 
