@@ -137,7 +137,7 @@ class PCEmodel:
             input,
             ):
         self.preprocess(input)
-        return self.model(input)
+        return self.model(input.T)
         
     def score(
             self, 
@@ -245,12 +245,12 @@ if __name__=="__main__":
         
     model.save_model("pce")
 
-    pred_train_output = model.predict(train_input)
+    pred_train_output = model.predict(train_input.T)
     train_score = model.score(train_output, pred_train_output)
     train_mse = model.score(train_output, pred_train_output, "mean_squared_error")
     train_rmse = rmse(train_output, pred_train_output)
     
-    pred_test_output = model.predict(test_input)
+    pred_test_output = model.predict(test_input.T)
     test_score = model.score(test_output, pred_test_output)
     test_mse = model.score(test_output, pred_test_output, "mean_squared_error")
     test_rmse = rmse(train_output, pred_train_output)
