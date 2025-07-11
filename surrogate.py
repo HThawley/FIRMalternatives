@@ -209,7 +209,6 @@ remove existing file. Current model saved as "tmp.json" """)
             coefficients = coefficients,
             names = names,
             )
-        self.model.coefficients = coefficients 
         self._is_trained=True
         if verbose: 
             print("Finished Succesfully. | Time:", dt.now())
