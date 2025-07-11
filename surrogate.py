@@ -169,7 +169,7 @@ class PCEmodel:
             "names" : self.model.names,
             }
         for k, v in metadata.items():
-            assert v is not None, "Cannot save an untrained model. ({k} is None)"
+            assert v is not None, f"Cannot save an untrained model. ({k} is None)"
         if overwrite is False:
             if os.path.exists(filepath):
                 os.mkdir("tmp_model_save")
