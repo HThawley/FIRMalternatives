@@ -255,12 +255,14 @@ if __name__=="__main__":
     model.save_model("pce")
 
     pred_train_output = model.predict(train_input)
-    train_score = model.score(train_output, pred_train_output)
+    # train_score = model.score(train_output, pred_train_output)
+    train_score = 0.0
     train_mse = model.score(train_output, pred_train_output, "mean_squared_error")
     train_rmse = rmse(train_output, pred_train_output)
     
     pred_test_output = model.predict(test_input)
-    test_score = model.score(test_output, pred_test_output)
+    # test_score = model.score(test_output, pred_test_output)
+    test_score = 0.0
     test_mse = model.score(test_output, pred_test_output, "mean_squared_error")
     test_rmse = rmse(train_output, pred_train_output)
     
@@ -276,6 +278,7 @@ if __name__=="__main__":
         score on testing dataset: {test_rmse}
         mean of (test + train) outputs: {np.mean(lcoes)}
         """)
+        
     raise KeyboardInterrupt()
     print("Starting sobol")
     
