@@ -203,7 +203,7 @@ remove existing file. Current model saved as "tmp.json" """)
         if verbose: 
             print("Creating Model... | Time:", dt.now())
             
-        self.model = cp.poly.ndpoly(
+        self.model = cp.ndpoly(
             exponents = exponents,
             coefficients = coefficients, 
             names = names,
