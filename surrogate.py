@@ -223,7 +223,7 @@ def rmse(arr1, arr2):
     return np.mean((arr1-arr2)**2)**0.5
 
 
-input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
+input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=10, header=None).to_numpy()
     
 rng = np.random.default_rng()
 rng.shuffle(input_data)
