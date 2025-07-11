@@ -36,10 +36,10 @@ class PCEmodel:
             self, 
             metadata_path: str=None,
             ):
+        self._is_trained = False
         
         if metadata_path is not None:
             self.load_model(metadata_path)
-            self._is_trained = True
             
         else: 
             self.coefficients = None
@@ -48,7 +48,6 @@ class PCEmodel:
             self.scaler_mean = None
             self.scaler_scale = None
 
-            self._is_trained = False
             self.num_inputs = 0
             
     def _data_assertions(self, input, output):
@@ -126,7 +125,6 @@ class PCEmodel:
             evals=output,
             model=lm.Lars(fit_intercept=False), 
             )
-        self.coefficients = self.model.coefficients
         self._is_trained = True
         if verbose: 
             print("Finished Succesfully. | Time:", dt.now())
@@ -163,7 +161,9 @@ class PCEmodel:
             "num_inputs" : self.num_inputs,
             "scaler_mean" : self.scaler_mean.tolist(),
             "scaler_scale" : self.scaler_scale.tolist(),
-            "coefficients" : self.coefficients,
+            "exponents" : self.model.exponents.tolist(),
+            "coefficients" : self.model.coefficients.tolist(),
+            "names" : self.model.names.tolist(),
             }
         for k, v in metadata.items():
             assert v is not None, "Cannot save an untrained model. ({k} is None)"
@@ -195,15 +195,20 @@ remove existing file. Current model saved as "tmp.json" """)
         self.num_inputs = metadata.get("num_inputs")
         self.scaler_mean = np.array(metadata.get("scaler_mean"))
         self.scaler_scale = np.array(metadata.get("scaler_scale"))
-        self.coefficients = metadata.get("coefficients")
         
-        joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
-        if verbose: 
-            print("Creating polynomial basis... | Time:", dt.now())
-        polynomial_basis = cp.expansion.stieltjes(self.polynomial_order, joint_distribution)
+        exponents = np.array(metadata.get("exponents"))
+        coefficients = np.array(metadata.get("coefficients"))
+        names = np.array(metadata.get("names"))
+        
         if verbose: 
             print("Creating Model... | Time:", dt.now())
-        self.model = cp.polynomial(polynomial_basis, self.coefficients)
+            
+        self.model = cp.poly.ndpoly(
+            exponents = exponents,
+            coefficients = coefficients, 
+            names = names,
+            )
+        self._is_trained=True
         if verbose: 
             print("Finished Succesfully. | Time:", dt.now())
             print("Took:", dt.now() - start)
@@ -221,7 +226,7 @@ def rmse(arr1, arr2):
 if __name__=="__main__":
     CSV_FILE_PATH = "Results/firmpoints.csv"
     
-    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
+    input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=100, header=None).to_numpy()
         
     rng = np.random.default_rng()
     rng.shuffle(input_data)
