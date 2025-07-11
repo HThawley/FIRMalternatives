@@ -56,10 +56,10 @@ class PCEmodel:
         assert input.ndim == 2, "input should be 2d numpy array"
         assert isinstance(output, np.ndarray), "output should be 1d numpy array"
         assert output.ndim == 1, "output should be 1d numpy array"
-        assert input.shape[0] == self.num_inputs
-        assert input.shape[1] == output.shape[0], "input (M, N) and output (N,) shapes should match"
-        assert ((input.T - self.ub) < 0.001).all(), "input does not obey supplied bounds"
-        assert ((self.lb - input.T) < 0.001).all(), "input does not obey supplied bounds"
+        assert input.shape[1] == self.num_inputs
+        assert input.shape[0] == output.shape[0], "input (N, M) and output (N,) shapes should match"
+        assert ((input - self.ub) < 0.001).all(), "input does not obey supplied bounds"
+        assert ((self.lb - input) < 0.001).all(), "input does not obey supplied bounds"
     
     def _create_scaler(
             self, 
@@ -80,9 +80,9 @@ class PCEmodel:
             self, 
             input, 
             ):
-        input = normalize(input.T, self.lb, self.ub).T
-        scaler = self._create_scaler(input.T)
-        input = scaler.transform(input.T).T
+        input = normalize(input, self.lb, self.ub)
+        scaler = self._create_scaler(input)
+        input = scaler.transform(input)
         return input
         
     def train(
@@ -95,8 +95,8 @@ class PCEmodel:
             method="lars",
             ):
         self.lb, self.ub = bounds
-        assert len(lb) == len(ub)
-        self.num_inputs = len(lb)
+        assert len(self.lb) == len(self.ub)
+        self.num_inputs = len(self.lb)
         self._data_assertions(input, output)
         
         assert isinstance(polynomial_order, int)
@@ -122,7 +122,7 @@ class PCEmodel:
             print("Fitting Model... | Time:", dt.now())
         self.model = cp.fit_regression(
             polynomials=polynomial_basis,
-            abscissas=input, # raw_data expects (n_features, n_samples)
+            abscissas=input.T, 
             evals=output,
             model=lm.Lars(fit_intercept=False), 
             )
@@ -162,6 +162,8 @@ class PCEmodel:
             "num_inputs" : self.num_inputs,
             "scaler_mean" : self.scaler_mean.tolist(),
             "scaler_scale" : self.scaler_scale.tolist(),
+            "lb" : self.lb.tolist(),
+            "ub" : self.ub.tolist(),
             "exponents" : self.model.exponents.tolist(),
             "coefficients" : self.model.coefficients,
             "names" : self.model.names,
@@ -196,6 +198,8 @@ remove existing file. Current model saved as "tmp.json" """)
         self.num_inputs = metadata.get("num_inputs")
         self.scaler_mean = np.array(metadata.get("scaler_mean"))
         self.scaler_scale = np.array(metadata.get("scaler_scale"))
+        self.lb = np.array(metadata.get("lb"))
+        self.ub = np.array(metadata.get("ub"))
         
         exponents = np.array(metadata.get("exponents"))
         coefficients = np.array(metadata.get("coefficients"))
@@ -247,7 +251,7 @@ if __name__=="__main__":
         model = PCEmodel("pce")
     else:
         model = PCEmodel()
-        model.train(train_input.T, train_output, (lb, ub))
+        model.train(train_input.T, train_output)
         
     model.save_model("pce")
 
