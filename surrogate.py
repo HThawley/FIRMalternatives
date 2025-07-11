@@ -62,7 +62,7 @@ class PCEmodel:
         assert input.shape[0] == self.num_inputs
         assert input.shape[1] == output.shape[0], "input (M, N) and output (N,) shapes should match"
         assert ((input.T - self.ub) < 0.001).all(), "input does not obey supplied bounds"
-        assert ((input.T - self.lb) > 0.001).all(), "input does not obey supplied bounds"
+        assert ((self.lb - input.T) < 0.001).all(), "input does not obey supplied bounds"
     
     def _create_scaler(
             self, 
