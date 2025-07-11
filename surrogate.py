@@ -8,7 +8,12 @@ Created on Thu Jul 10 09:22:27 2025
 import numpy as np
 import pandas as pd
 import chaospy as cp
+from datetime import datetime as dt
 from sklearn import linear_model as lm
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_poisson_deviance, mean_squared_error
+from numba import njit
+import json
 # from scipy.stats import gaussian_kde # For Kernel Density Estimation
 import os
 import pickle
@@ -22,75 +27,200 @@ from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 
 #%%
 
-
+np.set_printoptions(suppress=True)
 raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
 costs = raw_costs.CostFactors()
 
 CSV_FILE_PATH = "Results/firmpoints.csv"
-PCE_MODEL_FILENAME = 'pce_surrogate_model.pkl'
 
 
-# class PCEmodel:
-#     def __init__(self, coefficients=None, metadata=None):
+class PCEmodel:
+    def __init__(
+            self, 
+            metadata_path: str=None,
+            ):
         
-#         if coefficients is not None and metadata is not None:
-#             if not isinstance(coefficients, np.ndarray):
-#                 raise TypeError("Coefficients must be a NumPy array.")
-#             if not isinstance(metadata, dict):
-#                 raise TypeError("Metadata must be a dictionary.")
+        if metadata_path is not None:
+            self.load_model(metadata_path)
+            self._is_trained = True
             
-#             self.coefficients = coefficients
-#             self.metadata = metadata
-#             self._is_trained = True
-#             self._parse_metadata()
+        else: 
+            self.coefficents = None
+            self.polynomial_order = None
+            self.method = None
+            self.scaler_mean = None
+            self.scaler_scale = None
+
+            self._is_trained = False
+            self.num_inputs = 0
             
-#         else: 
-#             self.coefficents = None
-#             self.metadata = {}
-#             self._is_trained = False
-#             self.num_inputs = 0
-            
-#     def _parse_metadata(self):
-#         self.polynomial_order = self.metadata.get("polynomial_order")
-#         self.basis_type = self.metadata.get("basis_type")
-#         self.input_variables = self.metadata.get("input_variables")
-#         self.truncation_rule = self.metadata.get("truncation_rule")
-#         self.multi_indices = self.metadata.get("multi_indices")
-#         # self.num_inputs = self.metadata.get("num_inputs")
+    def _data_assertions(self, input, output):
+        assert isinstance(input, np.ndarray), "input should be 2d numpy array"
+        assert input.ndim == 2, "input should be 2d numpy array"
+        assert isinstance(output, np.ndarray), "output should be 1d numpy array"
+        assert output.ndim == 1, "output should be 1d numpy array"
+        assert input.shape[0] == self.num_inputs
+        assert input.shape[1] == output.shape[0], "input (M, N) and output (N,) shapes should match"
+        assert ((input.T - self.ub) < 0.001).all(), "input does not obey supplied bounds"
+        assert ((input.T - self.lb) > 0.001).all(), "input does not obey supplied bounds"
+    
+    def _create_scaler(
+            self, 
+            input,
+            ):
+        scaler = StandardScaler()
+        if self.scaler_mean is not None and self.scaler_scale is not None:
+            scaler.mean_ = self.scaler_mean
+            scaler.scale_ = self.scaler_scale
+            scaler.n_features_in_ = len(self.scaler_mean)
+        else: 
+            scaler.fit(input)
+            self.scaler_mean = scaler.mean_ 
+            self.scaler_scale = scaler.scale_ 
+        return scaler
+    
+    def preprocess(
+            self, 
+            input, 
+            ):
+        input = normalize(input, self.lb, self.ub)
+        scaler = self._create_scaler(input)
+        input = scaler.transform(input)
+        return input
         
-#     def train(self, X, Y, bounds, polynomial_order=2, )
-#         self.lb, self.ub = bounds
-#         joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
-#         polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
-
+    def train(
+            self, 
+            input, 
+            output, 
+            bounds, 
+            polynomial_order=2, 
+            verbose=True, 
+            method="lars",
+            ):
+        self.lb, self.ub = bounds
+        assert len(lb) == len(ub)
+        self.num_inputs = len(lb)
+        self._data_assertions(input, output)
         
+        assert isinstance(polynomial_order, int)
+        assert polynomial_order > 1
+        
+        self.method = method
+        self.polynomial_order = polynomial_order
+        
+        if self.method == "lars":
+            method = lm.Lars(fit_intercept=False)
+            #TODO: add options
+        
+        start = dt.now()
+        if verbose:
+            print("Starting training:", start)
+            print("Preprocessing training data... | Time:", dt.now())
+        input = input.preprocess(input)
+        joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
+        if verbose: 
+            print("Creating polynomial basis... | Time:", dt.now())
+        polynomial_basis = cp.expansion.stieltjes(self.polynomial_order, joint_distribution)
+        if verbose: 
+            print("Fitting Model... | Time:", dt.now())
+        self.model = cp.fit_regression(
+            polynomials=polynomial_basis,
+            abscissas=input.T, # raw_data expects (n_features, n_samples)
+            evals=output,
+            model=lm.Lars(fit_intercept=False), 
+            )
+        self.coefficients = self.model.coefficients
+        self._is_trained = True
+        if verbose: 
+            print("Finished Succesfully | Time:", dt.now())
+            print("Took:", dt.now() - start)
 
-# def save_pce_model(pce_model_to_save, filename):
-#     """
-#     Saves the trained Chaospy PCE model to a file using pickle.
-#     """
-#     try:
-#         with open(filename, 'wb') as f:
-#             pickle.dump(pce_model_to_save, f)
-#         print(f"PCE model successfully saved to {filename}")
-#     except Exception as e:
-#         print(f"Error saving PCE model to {filename}: {e}")
+    def predict(
+            self, 
+            input,
+            ):
+        return self.model(input)
+        
+    def score(
+            self, 
+            true_output,
+            predicted_output,
+            metric="mean_poisson_deviance",
+            ):
+        assert metric in ("mean_poisson_deviance", "mean_squared_error")
+        if metric == "mean_poisson_deviance":
+            return mean_poisson_deviance(true_output, predicted_output)
+        else: # metric == "mean_squared_error"
+            return mean_squared_error(true_output, predicted_output)
+        
+    def save_model(
+            self,
+            filepath:str,
+            overwrite = False,
+            ):
+        assert self._is_trained, "Cannot save an untrained model"
+        metadata = {
+            "polynomial_order" : self.polynomial_order,
+            "method" : self.method,
+            "num_inputs" : self.num_inputs,
+            "scaler_mean" : self.scaler_mean.tolist(),
+            "scaler_scale" : self.scaler_scale,
+            }
+        for v in metadata.values():
+            assert v is not None, "Cannot save an untrained model"
+        if overwrite is False:
+            if os.path.exists(filepath):
+                os.mkdir("tmp_model_save")
+                with open("tmp_model_save/tmp.json", "w") as f:
+                    json.dump(metadata, f, indent=4)
+                np.save("tmp_model_save/tmp.npy", self.coefficents, False)
+                raise Exception(
+"""Cannot overwrite existing saved model. Pass "`overwrite = True` or 
+remove existing file. Current model saved in folder "tmp_model_save""")
+        with open(filepath+".json", "w") as f:
+            json.dump(metadata, f, indent=4)
+        np.save(filepath+".npy", self.coefficents, False)
 
-# def load_pce_model(filename):
-#     """
-#     Loads a Chaospy PCE model from a file using pickle.
-#     """
-#     try:
-#         with open(filename, 'rb') as f:
-#             loaded_model = pickle.load(f)
-#         print(f"PCE model successfully loaded from {filename}")
-#         return loaded_model
-#     except FileNotFoundError:
-#         print(f"Error: Model file not found at {filename}. Please ensure it exists.")
-#         return None
-#     except Exception as e:
-#         print(f"Error loading PCE model from {filename}: {e}")
-#         return None
+    
+    def load_model(
+            self, 
+            filepath,
+            verbose=True,
+            ):
+        start = dt.now()
+        if verbose: 
+            print("Reading save files... | Time:", dt.now())
+        with open(filepath+".json", "r") as f:
+            metadata = json.load(filepath, f, indent=4)
+        self.coefficents = np.load(filepath+".npy", False)
+    
+        self.polynomial_order = metadata.get("polynomial_order")
+        self.method = metadata.get("method")
+        self.num_inputs = metadata.get("num_inputs")
+        self.scaler_mean = np.array(metadata.get("scaler_mean"))
+        self.scaler_scale = metadata.get("scaler_scale")
+        
+        joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
+        if verbose: 
+            print("Creating polynomial basis... | Time:", dt.now())
+        polynomial_basis = cp.expansion.stieltjes(self.polynomial_order, joint_distribution)
+        if verbose: 
+            print("Creating Model... | Time:", dt.now())
+        self.model = cp.polynomial(polynomial_basis, self.coefficients)
+        if verbose: 
+            print("Finished Succesfully. | Time:", dt.now())
+            print("Took:", dt.now() - start)
+    
+@njit
+def normalize(data, lb, ub):
+    """ data.shape[0] == len(lb) == len(ub) """
+    data = (data - lb) / (ub - lb)
+    return data
+    
+@njit
+def rmse(arr1, arr2):
+    return np.mean((arr1-arr2)**2)**0.5
+
 
 input_data = pd.read_csv(CSV_FILE_PATH, skiprows = 4_000_000, nrows=20_000, header=None).to_numpy()
     
@@ -102,64 +232,47 @@ input_data = input_data[:, 15:]
 
 cutoff = int(0.8*len(lcoes))
 
-test_qoi_data = lcoes[cutoff:]
-test_input_data = input_data[cutoff:, :]
+test_output = lcoes[cutoff:]
+test_input = input_data[cutoff:, :]
 
-qoi_data = lcoes[:cutoff]
-input_data = input_data[:cutoff, :]
+train_output = lcoes[:cutoff]
+train_input = input_data[:cutoff, :]
 
-joint_distribution = cp.J(*[cp.Uniform(l, u) for l, u in zip(lb, ub)])
-
-POLYNOMIAL_ORDER = 2 # You might need to experiment with this value
-
-s = perf_counter()
-# 1. Generate the orthogonal polynomials for the given order and distribution
-# This creates the basis functions for the PCE.
-print("checkpoint1")
-polynomial_basis = cp.expansion.stieltjes(POLYNOMIAL_ORDER, joint_distribution)
-
-# 2. Fit the PCE model using `chaospy.fit_regression` with LARS method.
-# This method internally handles the basis evaluation and sparse coefficient selection,
-# avoiding the explicit construction of a large dense design matrix and the
-# memory issues associated with `cp.sum` of a full basis.
-print("checkpoint2")
-pce_model = cp.fit_regression(
-    polynomials=polynomial_basis,
-    abscissas=input_data.T, # raw_data expects (n_features, n_samples)
-    evals=qoi_data,
-    model=lm.Lars(fit_intercept=False)
-    # model='LARS' # Use Least Angle Regression for sparse fitting
-)
-print("PCE model built successfully using Sparse Regression (LARS).")
-print(f"Number of terms in PCE: {len(pce_model.coefficients)}")
-# Note: residuals from `fit_regression` are not directly available like `np.linalg.lstsq`
-e = perf_counter()
-print("took", e-s, "seconds to train on", len(input_data), "points")
-# --- Save the trained model ---
-print("checkpoint3")
-# save_pce_model(pce_model, PCE_MODEL_FILENAME)
-
-print("checkpoint4")
-
-predicted_test_outputs = pce_model(*test_input_data.T)
-
-s = perf_counter()
-predicted_outputs = pce_model(*input_data.T)
-e = perf_counter()
-print((e-s)/len(input_data))
-
-def RMSE(arr1, arr2):
-    return np.mean((arr1-arr2)**2)**0.5
-
-rmse = RMSE(predicted_test_outputs,test_qoi_data)
+if os.path.exists("pce.json"):
+    model = PCEmodel("pce")
+else:
+    model = PCEmodel()
+    model.train(train_input)
     
-print(f"RMSE: {rmse}")
+model.save_model("pce")
+
+pred_train_output = model.predict(train_input)
+train_score = model.score(train_output, pred_train_output)
+train_mse = model.score(train_output, pred_train_output, "mean_squared_error")
+train_rmse = rmse(train_output, pred_train_output)
+
+pred_test_output = model.predict(test_input)
+test_score = model.score(test_output, pred_test_output)
+test_mse = model.score(train_output, pred_train_output, "mean_squared_error")
+test_rmse = rmse(train_output, pred_train_output)
+
+print("""
+Poisson deviation:
+    score on training dataset: {train_score} / 1.0
+    score on testing dataset: {test_score} / 1.0
+mean squared error:
+    score on training dataset: {train_mse} / 1.0
+    score on testing dataset: {test_mse} / 1.0
+raw rmse: 
+    score on training dataset: {train_rmse}
+    score on testing dataset: {test_rmse}
+    mean of (test + train) outputs: {np.mean(lcoes)}
+    """)
 
 
-print("Starting SOBOL")
 
 
-
+print("Starting sobol")
 
 # from numba import njit
 
@@ -268,10 +381,10 @@ sobol_lcoes = lcoes[:num_points]
 sobol1 = calculate_first_order_sobol(sobol_data, sobol_lcoes)
 print(sobol1)
 
-num_points = test_input_data.shape[0] - (test_input_data.shape[0] % (test_input_data.shape[1]+2))
+num_points = test_input.shape[0] - (test_input.shape[0] % (test_input.shape[1]+2))
 print(num_points)
-sobol_data = test_input_data[:num_points, :]
-sobol_lcoes = predicted_test_outputs[:num_points]
+sobol_data = test_input[:num_points, :]
+sobol_lcoes = test_predicted[:num_points]
 
 sobol2 = calculate_first_order_sobol(sobol_data, sobol_lcoes)
 print(sobol2)
