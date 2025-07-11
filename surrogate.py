@@ -81,8 +81,8 @@ class PCEmodel:
             input, 
             ):
         input = normalize(input.T, self.lb, self.ub).T
-        scaler = self._create_scaler(input)
-        input = scaler.transform(input)
+        scaler = self._create_scaler(input.T)
+        input = scaler.transform(input.T).T
         return input
         
     def train(
@@ -136,7 +136,7 @@ class PCEmodel:
             input,
             ):
         self.preprocess(input)
-        return self.model(input.T)
+        return self.model(*input.T)
         
     def score(
             self, 
@@ -204,8 +204,9 @@ remove existing file. Current model saved as "tmp.json" """)
         if verbose: 
             print("Creating Model... | Time:", dt.now())
             
-        self.model = ndpoly(
+        self.model = cp.polynomial_from_attributes(
             exponents = exponents,
+            coefficients = coefficients,
             names = names,
             )
         self.model.coefficients = coefficients 
