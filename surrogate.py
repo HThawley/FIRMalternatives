@@ -165,8 +165,8 @@ class PCEmodel:
             "scaler_scale" : self.scaler_scale.tolist(),
             "coefficients" : self.coefficients,
             }
-        for v in metadata.values():
-            assert v is not None, "Cannot save an untrained model"
+        for k, v in metadata.items():
+            assert v is not None, "Cannot save an untrained model. ({k} is None)"
         if overwrite is False:
             if os.path.exists(filepath):
                 os.mkdir("tmp_model_save")
