@@ -177,7 +177,7 @@ class PCEmodel:
 remove existing file. Current model saved in folder "tmp_model_save""")
         with open(filepath+".json", "w") as f:
             json.dump(metadata, f, indent=4)
-        np.save(filepath+".npy", self.coefficents, False)
+        np.save(filepath+".npy", self.coefficents.astype(float), False)
 
     
     def load_model(
