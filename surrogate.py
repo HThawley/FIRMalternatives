@@ -163,21 +163,20 @@ class PCEmodel:
             "num_inputs" : self.num_inputs,
             "scaler_mean" : self.scaler_mean.tolist(),
             "scaler_scale" : self.scaler_scale.tolist(),
+            "coefficients" : self.coefficients,
             }
         for v in metadata.values():
             assert v is not None, "Cannot save an untrained model"
         if overwrite is False:
             if os.path.exists(filepath):
                 os.mkdir("tmp_model_save")
-                with open("tmp_model_save/tmp.json", "w") as f:
+                with open("tmp.json", "w") as f:
                     json.dump(metadata, f, indent=4)
-                np.save("tmp_model_save/tmp.npy", self.coefficients, False)
                 raise Exception(
 """Cannot overwrite existing saved model. Pass "`overwrite = True` or 
-remove existing file. Current model saved in folder "tmp_model_save""")
+remove existing file. Current model saved as "tmp.json" """)
         with open(filepath+".json", "w") as f:
             json.dump(metadata, f, indent=4)
-        np.save(filepath+".npy", self.coefficients.astype(float), False)
 
     
     def load_model(
@@ -190,13 +189,13 @@ remove existing file. Current model saved in folder "tmp_model_save""")
             print("Reading save files... | Time:", dt.now())
         with open(filepath+".json", "r") as f:
             metadata = json.load(f)
-        self.coefficients = np.load(filepath+".npy", False)
     
         self.polynomial_order = metadata.get("polynomial_order")
         self.method = metadata.get("method")
         self.num_inputs = metadata.get("num_inputs")
         self.scaler_mean = np.array(metadata.get("scaler_mean"))
         self.scaler_scale = np.array(metadata.get("scaler_scale"))
+        self.coefficients = metadata.get("coefficients")
         
         joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
         if verbose: 
