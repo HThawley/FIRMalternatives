@@ -161,7 +161,7 @@ class PCEmodel:
             "num_inputs" : self.num_inputs,
             "scaler_mean" : self.scaler_mean.tolist(),
             "scaler_scale" : self.scaler_scale.tolist(),
-            "exponents" : self.model.exponents,
+            "exponents" : self.model.exponents.tolist(),
             "coefficients" : self.model.coefficients,
             "names" : self.model.names,
             }
@@ -196,9 +196,9 @@ remove existing file. Current model saved as "tmp.json" """)
         self.scaler_mean = np.array(metadata.get("scaler_mean"))
         self.scaler_scale = np.array(metadata.get("scaler_scale"))
         
-        exponents = metadata.get("exponents")
+        exponents = np.array(metadata.get("exponents"))
         coefficients = metadata.get("coefficients")
-        names = metadata.get("names")
+        names = tuple(metadata.get("names"))
         
         if verbose: 
             print("Creating Model... | Time:", dt.now())
