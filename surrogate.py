@@ -116,7 +116,7 @@ class PCEmodel:
         if verbose:
             print("Starting training:", start)
             print("Preprocessing training data... | Time:", dt.now())
-        input = input.preprocess(input)
+        input = self.preprocess(input)
         joint_distribution = cp.J(*[cp.Uniform(0,1) for _ in range(self.num_inputs)])
         if verbose: 
             print("Creating polynomial basis... | Time:", dt.now())
@@ -139,6 +139,7 @@ class PCEmodel:
             self, 
             input,
             ):
+        self.preprocess(input)
         return self.model(input)
         
     def score(
