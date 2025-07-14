@@ -23,7 +23,7 @@ from time import perf_counter
 from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
 from Costs import Raw_Costs 
 from Optimisation import Optimise, Objective
-from ParameterSweep import calculate_costs
+from ParameterSweep import calculate_costs, deduplicate_history
 from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 
 #%%
@@ -235,8 +235,12 @@ if __name__=="__main__":
         # skiprows = 4_000_000,
         # nrows=20_000, 
         header=None
-        ).to_numpy()
+        )
         
+    input_data = deduplicate_history(input_data, commit=False, precision=2)
+    input_data.to_csv("Results/Firmpoints-dedup2.csv", header=False, index=False)
+    input_data= input_data.to_numpy()
+    
     # input_data = input_data[::10, :]
     print(input_data.shape)
     og_shape = input_data.shape
