@@ -241,7 +241,7 @@ if __name__=="__main__":
     input_data.to_csv("Results/Firmpoints-dedup2.csv", header=False, index=False)
     input_data= input_data.to_numpy()
     
-    # input_data = input_data[::10, :]
+    input_data = input_data[::5, :]
     print(input_data.shape)
     og_shape = input_data.shape
     rng = np.random.default_rng(seed=1)
@@ -258,8 +258,8 @@ if __name__=="__main__":
     train_output = lcoes[:cutoff]
     train_input = input_data[:cutoff, :]
     
-    if os.path.exists("pce-full-2.json"):
-        model = PCEmodel("pce-full-2")
+    if os.path.exists("pce-full-step5-prec2.json"):
+        model = PCEmodel("pce-full-step5-prec2")
     else:
         model = PCEmodel()
         model.train(
@@ -269,7 +269,7 @@ if __name__=="__main__":
             polynomial_order = 2,
             )
         
-        model.save_model("pce-full-2")
+        model.save_model("pce-full-step5-prec2")
 
     pred_train_output = model.predict(train_input)
     try: 
