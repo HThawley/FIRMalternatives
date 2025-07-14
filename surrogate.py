@@ -228,7 +228,8 @@ def rmse(arr1, arr2):
     return np.mean((arr1-arr2)**2)**0.5
 
 if __name__=="__main__":
-    CSV_FILE_PATH = "Results/firmpoints.csv"
+    # CSV_FILE_PATH = "Results/firmpoints.csv"
+    CSV_FILE_PATH = "Results/Firmpoints-dedup2.csv"
     
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
@@ -237,8 +238,8 @@ if __name__=="__main__":
         header=None
         )
         
-    input_data = deduplicate_history(input_data, commit=False, precision=2, subset=list(range(15, input_data.shape[1])))
-    input_data.to_csv("Results/Firmpoints-dedup2.csv", header=False, index=False)
+    # input_data = deduplicate_history(input_data, commit=False, precision=2, subset=list(range(15, input_data.shape[1])))
+    # input_data.to_csv("Results/Firmpoints-dedup2.csv", header=False, index=False)
     input_data= input_data.to_numpy()
     
     input_data = input_data[::5, :]
