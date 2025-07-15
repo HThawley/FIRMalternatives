@@ -236,7 +236,7 @@ if __name__=="__main__":
     PCE_FILE_PATH = f"pce-full-s{STEP}-s{START}-p{PREC}-o{ORDER}.json"
     
     # CSV_FILE_PATH = "Results/firmpoints.csv"
-    CSV_FILE_PATH = "Results/Firmpoints-dedup{PREC}.csv"
+    CSV_FILE_PATH = f"Results/Firmpoints-dedup{PREC}.csv"
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
