@@ -228,9 +228,16 @@ def rmse(arr1, arr2):
     return np.mean((arr1-arr2)**2)**0.5
 
 if __name__=="__main__":
-    # CSV_FILE_PATH = "Results/firmpoints.csv"
-    CSV_FILE_PATH = "Results/Firmpoints-dedup2.csv"
     
+    STEP = 5
+    START = 0
+    PREC = 2
+    ORDER = 3
+    PCE_FILE_PATH = f"pce-full-s{STEP}-s{START}-p{PREC}-o{ORDER}.json"
+    
+    # CSV_FILE_PATH = "Results/firmpoints.csv"
+    CSV_FILE_PATH = "Results/Firmpoints-dedup{PREC}.csv"
+
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
         # skiprows = 4_000_000,
@@ -242,7 +249,7 @@ if __name__=="__main__":
     # input_data.to_csv("Results/Firmpoints-dedup2.csv", header=False, index=False)
     input_data= input_data.to_numpy()
     
-    input_data = input_data[::5, :]
+    input_data = input_data[START::STEP, :]
     print(input_data.shape)
     og_shape = input_data.shape
     rng = np.random.default_rng(seed=1)
@@ -259,18 +266,18 @@ if __name__=="__main__":
     train_output = lcoes[:cutoff]
     train_input = input_data[:cutoff, :]
     
-    if os.path.exists("pce-full-step5-prec2.json"):
-        model = PCEmodel("pce-full-step5-prec2")
+    if os.path.exists(PCE_FILE_PATH):
+        model = PCEmodel(PCE_FILE_PATH)
     else:
         model = PCEmodel()
         model.train(
             train_input, 
             train_output, 
             (lb, ub), 
-            polynomial_order = 2,
+            polynomial_order = ORDER,
             )
         
-        model.save_model("pce-full-step5-prec2")
+        model.save_model(PCE_FILE_PATH)
 
     pred_train_output = model.predict(train_input)
     try: 
