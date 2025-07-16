@@ -232,7 +232,7 @@ if __name__=="__main__":
     STEP = 10
     START = 0
     PREC = 2
-    ORDER = 2
+    ORDER = 3
     PCE_FILE_PATH = f"pce-full-s{STEP}-s{START}-p{PREC}-o{ORDER}.json"
     
     # CSV_FILE_PATH = "Results/firmpoints.csv"
