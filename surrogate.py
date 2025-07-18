@@ -26,11 +26,11 @@ from Optimisation import Optimise, Objective
 from ParameterSweep import calculate_costs, deduplicate_history
 from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 
-#%%
-
 np.set_printoptions(suppress=True)
 raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
 costs = raw_costs.CostFactors()
+
+#%%
 
 class PCEmodel:
     def __init__(
