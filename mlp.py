@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     model = MLPmodel()
-    if os.path.exists(MODEL_FILE_PATH):
+    if False: #os.path.exists(MODEL_FILE_PATH):
         print("Found existing model. Loading it.")
         model.load_model(MODEL_FILE_PATH)
     else:
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     start = perf_counter()
     pred_test = model.predict(X_test)
     end = perf_counter()
-    print(f"Time to evaluate {X_test.shape[0]} solutions: {(end-start):.4f}. sec")
+    print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f}. ms")
     print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
     test_r2 = model.score(Y_test, pred_test, "r2_score")
     test_mse = model.score(Y_test, pred_test, "mean_squared_error")
