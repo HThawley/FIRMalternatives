@@ -222,7 +222,7 @@ class MLPmodel:
 
 
 if __name__ == "__main__":
-    STEP = 10
+    STEP = 5
     START = 0
     PREC = 2
     MODEL_FILE_PATH = f"mlp-full-s{STEP}-s{START}-p{PREC}.joblib"
@@ -264,14 +264,14 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     model = MLPmodel()
-    if os.path.exists(MODEL_FILE_PATH):
+    if False: # os.path.exists(MODEL_FILE_PATH):
         print("Found existing model. Loading it.")
         model.load_model(MODEL_FILE_PATH)
     else:
         print("No existing model found. Training a new one.")
         # These parameters are a good starting point but may need tuning
         mlp_hyperparams = {
-            'hidden_layer_sizes': (96, 64, 32), # Deeper network for complex functions
+            'hidden_layer_sizes': (128, 96, 64, 32), # Deeper network for complex functions
             'activation': 'relu',
             'solver': 'adam',
             'alpha': 0.0001, # L2 regularization
