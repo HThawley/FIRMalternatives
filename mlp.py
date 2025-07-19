@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     model = MLPmodel()
-    if False: #os.path.exists(MODEL_FILE_PATH):
+    if os.path.exists(MODEL_FILE_PATH):
         print("Found existing model. Loading it.")
         model.load_model(MODEL_FILE_PATH)
     else:
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")
-
+    print(f"Train set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
     # Evaluate on the training set
     start = perf_counter()
     pred_train = model.predict(X_train)
