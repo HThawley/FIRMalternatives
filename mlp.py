@@ -222,7 +222,7 @@ class MLPmodel:
 
 
 if __name__ == "__main__":
-    STEP = 5
+    STEP = 2
     START = 0
     PREC = 2
     MODEL_FILE_PATH = f"mlp-full-s{STEP}-s{START}-p{PREC}.joblib"
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     lcoes = calculate_costs(input_data, costs)
     input_data = input_data[:, 15:]
     
-    cutoff = int(0.95*len(lcoes))
+    cutoff = int(0.90*len(lcoes))
     
     Y_test = lcoes[cutoff:]
     X_test = input_data[cutoff:, :]
