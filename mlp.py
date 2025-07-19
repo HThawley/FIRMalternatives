@@ -222,7 +222,7 @@ class MLPmodel:
 
 
 if __name__ == "__main__":
-    STEP = 2
+    STEP = 1
     START = 0
     PREC = 2
     MODEL_FILE_PATH = f"mlp-full-s{STEP}-s{START}-p{PREC}.joblib"
@@ -279,7 +279,7 @@ if __name__ == "__main__":
             'learning_rate': 'adaptive',
             'max_iter': 500,
             'early_stopping': True,
-            'n_iter_no_change': 20, # Stop if validation score doesn't improve
+            'n_iter_no_change': 50, # Stop if validation score doesn't improve
             'verbose': True,
             'random_state': 42,
         }
