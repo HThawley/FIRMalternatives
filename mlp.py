@@ -271,7 +271,7 @@ if __name__ == "__main__":
         print("No existing model found. Training a new one.")
         # These parameters are a good starting point but may need tuning
         mlp_hyperparams = {
-            'hidden_layer_sizes': (128, 96, 64, 32), # Deeper network for complex functions
+            'hidden_layer_sizes': (192, 128, 96, 64, 32, 16), # Deeper network for complex functions
             'activation': 'relu',
             'solver': 'adam',
             'alpha': 0.0001, # L2 regularization
