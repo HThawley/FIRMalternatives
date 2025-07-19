@@ -233,8 +233,8 @@ if __name__ == "__main__":
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
-        skiprows = 4_000_000,
-        nrows=2_000_000, 
+        # skiprows = 4_000_000,
+        # nrows=2_000_000, 
         header=None,
         )
     
@@ -271,7 +271,7 @@ if __name__ == "__main__":
         print("No existing model found. Training a new one.")
         # These parameters are a good starting point but may need tuning
         mlp_hyperparams = {
-            'hidden_layer_sizes': (128, 64, 32), # Deeper network for complex functions
+            'hidden_layer_sizes': (96, 64, 32), # Deeper network for complex functions
             'activation': 'relu',
             'solver': 'adam',
             'alpha': 0.0001, # L2 regularization
@@ -281,7 +281,7 @@ if __name__ == "__main__":
             'early_stopping': True,
             'n_iter_no_change': 20, # Stop if validation score doesn't improve
             'verbose': True,
-            'random_state': 42
+            'random_state': 42,
         }
         model.train(X_train, Y_train, (lb, ub), mlp_params=mlp_hyperparams)
         model.save_model(MODEL_FILE_PATH, overwrite=True)
