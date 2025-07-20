@@ -233,8 +233,8 @@ if __name__ == "__main__":
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
-        # skiprows = 4_000_000,
-        # nrows=2_000_000, 
+        skiprows = 4_000_000,
+        nrows=20_000, 
         header=None,
         )
     
@@ -271,7 +271,8 @@ if __name__ == "__main__":
         print("No existing model found. Training a new one.")
         # These parameters are a good starting point but may need tuning
         mlp_hyperparams = {
-            'hidden_layer_sizes': (192, 128, 96, 96, 96, 96, 64, 32), # Deeper network for complex functions
+            # 'hidden_layer_sizes': (128, 128, 96, 96, 96, 96, 64, 32), # Deeper network for complex functions
+            'hidden_layer_sizes': (256, 128, 64), # Deeper network for complex functions
             'activation': 'relu',
             'solver': 'adam',
             'alpha': 0.0001, # L2 regularization
