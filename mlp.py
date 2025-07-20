@@ -233,8 +233,8 @@ if __name__ == "__main__":
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
-        skiprows = 4_000_000,
-        nrows=20_000, 
+        # skiprows = 4_000_000,
+        # nrows=20_000, 
         header=None,
         )
     
