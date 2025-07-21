@@ -71,9 +71,6 @@ class MLPmodel:
         assert y.ndim == 1, "Output (y) should be a 1D numpy array"
         assert X.shape[1] == self.num_inputs, f"Input features should be {self.num_inputs}"
         assert X.shape[0] == y.shape[0], "Input (N, M) and output (N,) shapes should match"
-        if self.lb is not None and self.ub is not None:
-            assert np.all(X >= self.lb), "Some input values are below the lower bounds"
-            assert np.all(X <= self.ub), "Some input values are above the upper bounds"
     
     def _create_scaler(self, X):
         scaler = StandardScaler()
