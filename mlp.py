@@ -7,7 +7,7 @@ Created on Fri Jul 18 19:41:39 2025
 
 import numpy as np
 import pandas as pd
-import joblib
+import json
 from datetime import datetime as dt
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
@@ -42,7 +42,7 @@ class MLPmodel:
     A wrapper class for a scikit-learn MLPRegressor to create a surrogate model.
 
     This class handles model training, prediction, evaluation, and persistence
-    (saving/loading), mirroring the API of the provided PCEmodel class.
+    (saving/loading)
     """
     def __init__(self, model_path: str = None):
         """
@@ -75,9 +75,31 @@ class MLPmodel:
         if self.lb is not None and self.ub is not None:
             assert np.all(X >= self.lb), "Some input values are below the lower bounds"
             assert np.all(X <= self.ub), "Some input values are above the upper bounds"
+    
+    def _create_scaler(self, X):
+        scaler = StandardScaler()
+        if self.scaler_mean is not None and self.scaler_scale is not None:
+            scaler.mean_ = self.scaler_mean
+            scaler.scale_ = self.scaler_scale
+            scaler.n_features_in_ = len(self.scaler_mean)
+        else: 
+            scaler.fit(X)
+            self.scaler_mean = scaler.mean_ 
+            self.scaler_scale = scaler.scale_ 
+        return scaler
+    
+    def preprocess(self, X):
+        scaler = self._create_scaler(X)
+        X_scaled = scaler.transform(X)
+        return X_scaled
 
-
-    def train(self, X_train, y_train, bounds, mlp_params: dict = None, verbose=True):
+    def train(
+            self, 
+            X, 
+            y,
+            verbose=True, 
+            **mlp_params, 
+            ):
         """
         Trains the MLP surrogate model.
 
@@ -90,10 +112,8 @@ class MLPmodel:
                                          MLPRegressor. Defaults to a standard configuration.
             verbose (bool, optional): If True, prints training progress. Defaults to True.
         """
-        self.lb, self.ub = bounds
-        assert len(self.lb) == len(self.ub)
-        self.num_inputs = len(self.lb)
-        self._data_assertions(X_train, y_train)
+        self.num_inputs = X.shape[1]
+        self._data_assertions(X, y)
 
         start = dt.now()
         if verbose:
@@ -102,31 +122,15 @@ class MLPmodel:
         # 1. Preprocessing: Scale the input data
         if verbose:
             print("Fitting scaler and transforming training data...")
-        self.scaler = StandardScaler()
-        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_scaled = self.preprocess(X)
 
-        # 2. Model Initialization
-        if mlp_params is None:
-            # Default parameters if none are provided
-            mlp_params = {
-                'hidden_layer_sizes': (100, 50, 25),
-                'activation': 'relu',
-                'solver': 'adam',
-                'alpha': 0.0001,
-                'batch_size': 'auto',
-                'learning_rate': 'adaptive',
-                'max_iter': 500,
-                'early_stopping': True,
-                'n_iter_no_change': 20,
-                'verbose': verbose,
-                'random_state': 42
-            }
+        self.mlp_params = mlp_params
         self.model = MLPRegressor(**mlp_params)
 
         # 3. Model Training
         if verbose:
             print("Fitting MLP Regressor...")
-        self.model.fit(X_train_scaled, y_train)
+        self.model.fit(X_scaled, y)
 
         self._is_trained = True
         if verbose:
@@ -147,9 +151,7 @@ class MLPmodel:
         if not self._is_trained:
             raise RuntimeError("Model has not been trained yet. Call .train() first.")
         
-        # Scale the input features using the previously fitted scaler
-        X_scaled = self.scaler.transform(X)
-        
+        X_scaled = self.preprocess(X)        
         return self.model.predict(X_scaled)
 
     def score(self, y_true, y_pred, metric="r2_score"):
@@ -174,7 +176,7 @@ class MLPmodel:
 
     def save_model(self, filepath: str, overwrite=False):
         """
-        Saves the trained model and scaler to a file using joblib.
+        Saves the trained model and scaler to a file using json.
 
         Args:
             filepath (str): The path to save the model file.
@@ -188,13 +190,29 @@ class MLPmodel:
                 f"File '{filepath}' already exists. Pass overwrite=True to replace it."
             )
 
-        # Bundle the model and the scaler together for saving
-        save_data = {
-            'model': self.model,
-            'scaler': self.scaler,
-            'bounds': (self.lb, self.ub)
-        }
-        joblib.dump(save_data, filepath)
+        metadata = {}
+        metadata["num_inputs"] = self.num_inputs
+        metadata["scaler_mean"] = self.scaler_mean.tolist()
+        metadata["scaler_scale"] = self.scaler_scale.tolist()
+        
+        for k, v in metadata.items():
+            assert v is not None, f"Cannot save an untrained model. ({k} is None)"
+        
+        for k, v in self.mlp_params.items():
+            metadata[k] = v
+        
+        try: 
+            layers = [layer.shape for layer in self.model.intercepts_][:-1]
+            metadata["layers"] = layers
+            for i in range(len(layers)+1):
+                metadata[f"intercepts_{i}"] = self.model.intercepts_[i].tolist()
+                metadata[f"coefs_{i}"] = self.model.coefs_[i].tolist()
+        except Exception as E:
+            raise E("Model not trained properly. Cannot save")
+
+        with open(filepath+".json", "w") as f:
+            json.dump(metadata, f, indent=4)
+        
         print(f"Model saved successfully to {filepath}")
 
     def load_model(self, filepath: str, verbose=True):
@@ -209,12 +227,27 @@ class MLPmodel:
         if verbose:
             print(f"Loading model from {filepath}...")
 
-        load_data = joblib.load(filepath)
-        self.model = load_data['model']
-        self.scaler = load_data['scaler']
-        self.lb, self.ub = load_data['bounds']
+        with open(filepath+".json", "r") as f:
+            metadata = json.load(f)
+
+        self.num_inputs = metadata["num_inputs"] 
+        self.scaler_mean = np.array(metadata["scaler_mean"])
+        self.scaler_scale = np.array(metadata["scaler_scale"])
+
+        layers = [tuple(layer) for layer in metadata["layers"]]
         
-        self.num_inputs = self.scaler.n_features_in_
+        mlp_params = {k: v for k, v in metadata.items() if 
+                      (k not in ("num_inputs", "scaler_mean", "scaler_scale", "layers", "hidden_layer_sizes"))
+                      and ("coefs_" not in k) and ("intercepts_" not in k)}
+        
+        self.model = MLPRegressor(
+            hidden_layer_sizes = tuple(layers), 
+            **mlp_params,
+            )
+        
+        self.model.coefs_ = [np.array(metadata[f"coefs_{i}"]) for i in range(len(layers) + 1)]
+        self.model.intercepts_ = [np.array(metadata[f"intercepts_{i}"]) for i in range(len(layers) + 1)]
+
         self._is_trained = True
         
         if verbose:
@@ -225,7 +258,7 @@ if __name__ == "__main__":
     STEP = 1
     START = 0
     PREC = 2
-    MODEL_FILE_PATH = f"mlp-full-s{STEP}-s{START}-p{PREC}.joblib"
+    MODEL_FILE_PATH = f"mlp-full-s{STEP}-s{START}-p{PREC}"
 
     # CSV_FILE_PATH = "Results/Firmpoints-dedup{PREC}.csv"
     CSV_FILE_PATH = "Results/firmpoints.csv"
@@ -271,20 +304,17 @@ if __name__ == "__main__":
         print("No existing model found. Training a new one.")
         # These parameters are a good starting point but may need tuning
         mlp_hyperparams = {
-            # 'hidden_layer_sizes': (128, 128, 96, 96, 96, 96, 64, 32), # Deeper network for complex functions
-            'hidden_layer_sizes': (256, 128, 64), # Deeper network for complex functions
-            'activation': 'relu',
+            "loss": "poisson",
+            'hidden_layer_sizes': (128, 64),
+            'activation': 'tanh',
             'solver': 'adam',
-            'alpha': 0.0001, # L2 regularization
-            'batch_size': 256,
-            'learning_rate': 'adaptive',
+            'alpha': 0.0001,
             'max_iter': 500,
             'early_stopping': True,
             'n_iter_no_change': 50, # Stop if validation score doesn't improve
             'verbose': True,
-            'random_state': 42,
         }
-        model.train(X_train, Y_train, (lb, ub), mlp_params=mlp_hyperparams)
+        model.train(X_train, Y_train, mlp_params=mlp_hyperparams)
         model.save_model(MODEL_FILE_PATH, overwrite=True)
 
     # --- Evaluation ---
