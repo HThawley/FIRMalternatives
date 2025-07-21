@@ -54,10 +54,9 @@ class MLPmodel:
         """
         self._is_trained = False
         self.model = None
-        self.scaler = None
+        self.scaler_mean = None
+        self.scaler_scale = None
         self.num_inputs = 0
-        self.lb = None
-        self.ub = None
 
         if model_path is not None:
             self.load_model(model_path)
