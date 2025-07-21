@@ -310,7 +310,7 @@ if __name__ == "__main__":
             'n_iter_no_change': 50, # Stop if validation score doesn't improve
             'verbose': True,
         }
-        model.train(X_train, Y_train, mlp_params=mlp_hyperparams)
+        model.train(X_train, Y_train, **mlp_hyperparams)
         model.save_model(MODEL_FILE_PATH, overwrite=True)
 
     # --- Evaluation ---
