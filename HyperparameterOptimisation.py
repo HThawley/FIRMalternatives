@@ -59,7 +59,7 @@ x = np.empty((BATCHSIZE, n_inputs), np.float64)
 rng = np.random.default_rng(RANDOMSEED)
 for _ in tqdm(range(ITERATIONS)):
     x = unnormalise(x, lb, ub)
-    ObjectiveWrapper(x, costs, fileprinter)
+    ObjectiveWrapper(x.T, costs, fileprinter)
 fileprinter.Terminate()
 
         
