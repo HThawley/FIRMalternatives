@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 import os
+from pathlib import Path
 from numba import njit
 from time import perf_counter
 
@@ -179,12 +180,18 @@ class MLPmodel:
             overwrite (bool, optional): If False, raises an error if the file
                                         already exists. Defaults to False.
         """
+        if not filepath.endswith(".json"):
+            filepath += ".json"
         if not self._is_trained:
             raise RuntimeError("Cannot save an untrained model.")
-        if not overwrite and os.path.exists(filepath):
+        path = Path(filepath)
+        if not overwrite and os.path.exists(path):
             raise FileExistsError(
                 f"File '{filepath}' already exists. Pass overwrite=True to replace it."
             )
+        if not os.path.exists(path.parent):
+            os.mkdir(path.parent)
+
 
         metadata = {}
         metadata["num_inputs"] = self.num_inputs
@@ -211,7 +218,7 @@ class MLPmodel:
             metadata[f"intercepts_{i}"] = self.model.intercepts_[i].tolist()
             metadata[f"coefs_{i}"] = self.model.coefs_[i].tolist()
 
-        with open(filepath+".json", "w") as f:
+        with open(filepath, "w") as f:
             json.dump(metadata, f, indent=4)
         
         print(f"Model saved successfully to {filepath}.json")
@@ -224,6 +231,9 @@ class MLPmodel:
             filepath (str): The path to the model file.
             verbose (bool, optional): If True, prints loading status. Defaults to True.
         """
+        if not filepath.endswith(".json"):
+            filepath += ".json"
+        
         start = dt.now()
         if verbose:
             print(f"Loading model from {filepath}...")
@@ -268,7 +278,7 @@ if __name__ == "__main__":
     STEP = 1
     START = 0
     PREC = 2
-    MODEL_FILE_PATH = f"mlp-full-s{STEP}-s{START}-p{PREC}"
+    MODEL_FILE_PATH = f"MLP_models/mlp-full-s{STEP}-s{START}-p{PREC}"
 
     # CSV_FILE_PATH = "Results/Firmpoints-dedup{PREC}.csv"
     CSV_FILE_PATH = "Results/firmpoints.csv"
@@ -326,7 +336,7 @@ if __name__ == "__main__":
         }
         model.train(X_train, Y_train, **mlp_hyperparams)
         # model.save_model(MODEL_FILE_PATH, overwrite=True)
-        #%%
+#%%
         
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")

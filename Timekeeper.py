@@ -1,9 +1,11 @@
+
 # -*- coding: utf-8 -*-
 """
 Created on Tue Mar 11 09:02:17 2025
 
 @author: u6942852
 """
+on_switch = True
 
 from datetime import datetime as dt
 from datetime import timedelta as td
@@ -17,7 +19,9 @@ import pandas as pd
 spec = [
         ('functions', int64[:]), 
         ('times', float64[:,:]),
+        ('compile', float64[:,:]),
         ('calls', int64[:]),
+        ('jitted', boolean[:]),
         ('_empty', boolean),
         ]
 
@@ -27,28 +31,57 @@ class Timekeeper:
         self.functions = np.zeros(1, dtype=np.int64)
         self.times = np.zeros((1, 3), dtype=np.float64)
         self.calls = np.zeros(1, dtype=np.int64)
+        self.compile = np.zeros((1, 3), dtype=np.float64)
         self._empty=True
-    def Add_func(self):
+        with objmode():
+            globals()['timekeeper_names'] = {}
+    def Add_func(self, jit):
         if self._empty is True:
             self._empty = False
+            self.jitted = np.array([jit], dtype=np.bool_)
             return 0
         self.functions = np.arange(len(self.functions)+1)
         self.times = np.vstack((self.times, np.zeros((1,3), np.float64)))
+        self.compile = np.vstack((self.compile, np.zeros((1,3), np.float64)))
         self.calls = np.concatenate((self.calls, np.zeros(1, np.int64)))
+        self.jitted = np.concatenate((self.jitted, np.array([jit], np.bool_)))
         return len(self.functions) - 1 
     def Update(self, index, time):
-        self.times[index] += time
+        if self.calls[index] == 0:
+            self.compile[index] += time
+        else: 
+            self.times[index] += time
         self.calls[index] += 1
     
-def PrintTimekeeper(path=None, console=True,):
+def PrintTimekeeper(path=None, console=True, combine=False, on_switch=True):
+    if not on_switch:
+        return
     tk = globals()['timekeeper']
     names = globals()['timekeeper_names']
     if console is True:
         print("Timekeeper","="*50, sep='\n')
-        lens = [len(names[i]) for i in tk.functions]
-        mlen=max(lens)
+        lens = [[len(names[i]) for i in tk.functions], 
+                [len(str(int(tk.calls[i]))) for i in tk.functions],
+                [len(str(td(*tk.times[i]))) if tk.jitted[i]
+                 else len(str(td(*tk.times[i]) + td(*tk.compile[i])))
+                 for i in tk.functions]]
+        maxlens = [max(_lens) for _lens in lens]
+                   
         for i in tk.functions:
-            print(f'Function: {names[i]}{" "*(1+(mlen-lens[i]))}\t|Calls: {tk.calls[i]}. \t|Time: {td(*tk.times[i])}')
+            if tk.jitted[i]: 
+                print(
+                    f'Function: {names[i]}{" "*(1+(maxlens[0]-lens[0][i]))}\t|'+
+                    f'Calls: {int(tk.calls[i])}{" "*(1+(maxlens[1]-lens[1][i]))} \t|'+
+                    f'Time: {td(*tk.times[i])}{" "*(1+(maxlens[2]-lens[2][i]))} \t|'+
+                    f'Compile: {td(*tk.compile[i])}'
+                      )
+            else: 
+                print(
+                    f'Function: {names[i]}{" "*(1+(maxlens[0]-lens[0][i]))}\t|'+
+                    f'Calls: {int(tk.calls[i])}{" "*(1+(maxlens[1]-lens[1][i]))}\t|'+
+                    f'Time: {td(*tk.times[i])+td(*tk.compile[i])}{" "*(1+(maxlens[2]-lens[2][i]))} \t|'+
+                     'Compile: -'
+                      )
         print("="*50)
     if path is not None:
         indices = [names[index] for index in tk.functions]
@@ -75,20 +108,20 @@ def time_delta(start, end):
         delta[:] = np.array([d.days, d.seconds, d.microseconds], np.float64)
     return delta
 
-@njit 
-def update_timekeeper(timekeeper, index, time):
-    timekeeper.times[index] += time
-    timekeeper.calls[index] += 1
-    # timekeeper.Update(index, delta)
-
-def keeptime(name=None):
+def keeptime(name=None, on_switch=True):
     def decorator(func):
-        try:
-            index = globals()['timekeeper'].Add_func()
+        if not on_switch:
+            return func
+        
+        jit = isinstance(func, CPUDispatcher)
+        try: 
+            globals()['timekeeper']
         except KeyError:
-            global timekeeper
-            timekeeper = Timekeeper()
-            index = globals()['timekeeper'].Add_func()
+            globals()['timekeeper']=Timekeeper()
+            # raise KeyError("Please declare an instance of timekeeper `timekeeper=Timekeeper()`")
+                            
+        index = globals()['timekeeper'].Add_func(jit)
+        
         if name is not None:
             try:
                 globals()['timekeeper_names'][index]=name
@@ -97,7 +130,7 @@ def keeptime(name=None):
                 timekeeper_names = {}
                 globals()['timekeeper_names'][index]=name
         
-        if isinstance(func, CPUDispatcher):
+        if jit:
             @njit
             def wrapper(*args):
                 start=dt_now()
@@ -109,13 +142,14 @@ def keeptime(name=None):
             def wrapper(*args, **kwargs):
                 start=dt_now()
                 ret=func(*args, **kwargs)
-                globals()['timekeeper'].Update(index, time_delta(start, dt_now()))
+                globals()["timekeeper"].Update(index, time_delta(start, dt_now()))
                 return ret
         return wrapper
     return decorator
 
 timekeeper=Timekeeper()
-timekeeper_names={}
+# timekeeper_names={}
+
 
 if __name__=='__main__':
     from time import sleep
@@ -156,6 +190,6 @@ if __name__=='__main__':
     func2()
     func4()
     func_rec()
-    PrintTimekeeper()#
+    PrintTimekeeper()
         
         

@@ -10,6 +10,8 @@ from Optimisation import Optimise, Objective
 from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 from Fileprinter import Fileprinter
 
+TK_SWITCH = True
+
 
 ## Parameters to sweep 
 raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
@@ -27,7 +29,7 @@ carbon_price = (0, 35, 70, 140)
 
 costs = raw_costs.CostFactors()
 
-@keeptime('Select population')
+# @keeptime('Select population', TK_SWITCH)
 def select_population(costs):
     history = read_history()
     history = deduplicate_history(history, commit=True, precision=4)
@@ -38,12 +40,12 @@ def select_population(costs):
     history = history[sort_array[:noptimaln], 14:]
     return history
 
-@keeptime('Reading His.y')
+# @keeptime('Reading His.y', TK_SWITCH)
 def read_history():
     history = pd.read_csv(f'Results/History{scenario}.csv', header=None)
     return history
 
-@keeptime('Dedup-ing History')
+# @keeptime('Dedup-ing History', TK_SWITCH)
 def deduplicate_history(history, commit=False, precision=None, subset=None):
     if precision is None:
         history = history.drop_duplicates(subset=subset)
@@ -53,7 +55,7 @@ def deduplicate_history(history, commit=False, precision=None, subset=None):
         write_history(history)
     return history
         
-@keeptime('Write dedup-ed his.y')
+# @keeptime('Write dedup-ed his.y', TK_SWITCH)
 def write_history(history):
     history.to_csv(f'Results/History{scenario}.csv', header=False, index=False)
 
@@ -70,7 +72,7 @@ def calculate_distances(history, centroid):
     distances = ((history - centroid)**2).sum(axis=1)**(1/2)
     return distances
 
-@keeptime('Cost calcs')
+# @keeptime('Cost calcs', TK_SWITCH)
 @njit
 def calculate_costs(history, costs):
     Lcoes = np.stack((
@@ -94,6 +96,8 @@ def calculate_costs(history, costs):
 
 
 if __name__ == '__main__':
+    raise KeyboardInterrupt
+    
     fileprinter = Fileprinter(f'Results/Paramsweep{scenario}.csv', 1, [
         'carbon price', 'gas fuel', 'pv capex', 'wind capex', 'LCOE'] + 
         ['Energy', 'penalties', 'Gas GWh p.a.', 'Gas CF', 'Flexible GWh p.a.', 
@@ -150,5 +154,5 @@ if __name__ == '__main__':
                         stats = Objective(result.x, costs)
                         
                         fileprinter([[p,q,r,s,result.fun]+list(stats[1:])+list(result.x)])
-    PrintTimekeeper(f'Results/Timekeep-ps-{scenario}.csv')
+    # PrintTimekeeper(f'Results/Timekeep-ps-{scenario}.csv')
 

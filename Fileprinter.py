@@ -10,7 +10,7 @@ from csv import writer
 from os import remove
 from shutil import copyfile
 
-from Input import keeptime, timekeeper, timekeeper_names
+# from Input import keeptime, timekeeper, timekeeper_names, TK_SWITCH
 
 class Fileprinter:
     def __init__(self, file_name:str, save_freq:int, header=None, resume=False):
@@ -33,7 +33,7 @@ class Fileprinter:
         if self.array is not None:
             self._flush()
                       
-    @keeptime('Manage file print')
+    # @keeptime('Manage file print', TK_SWITCH)
     def __call__(self, arr):
         self.callno+=1     
         if self.array is None:
@@ -43,13 +43,13 @@ class Fileprinter:
         if self.callno % self.save_freq == 0:
             self._flush()
     
-    @keeptime('Print to file')
+    # @keeptime('Print to file', TK_SWITCH)
     def _print(self):
         with open(self.temp_file_path, 'a', newline='') as file:
             writer(file).writerows(self.array) 
             file.close()
     
-    @keeptime('Copying files')
+    # @keeptime('Copying files', TK_SWITCH)
     def _copyfile(self, forward=True):
         if forward is True:
             try:

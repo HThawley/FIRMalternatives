@@ -18,53 +18,82 @@ def Fill_linear(solution):
     GCBio = solution.CBio.sum()
     model.GCGas = pyo.Var(domain=pyo.NonNegativeReals)
     # GCGas = solution.CGas.sum()
-    
 
-    model.t     = pyo.RangeSet(solution.intervals) 
+    model.t = pyo.RangeSet(solution.intervals) 
+    model.n = pyo.RangeSet(solution.nodes) 
 
-    model.charge =  pyo.Var(model.t, domain=pyo.NonNegativeReals)
-    model.discharge=pyo.Var(model.t, domain=pyo.NonNegativeReals)
-    model.storage = pyo.Var(model.t, domain=pyo.NonNegativeReals)
-    model.hydro =   pyo.Var(model.t, domain=pyo.NonNegativeReals)
-    model.bio =     pyo.Var(model.t, domain=pyo.NonNegativeReals)
-    model.gas =     pyo.Var(model.t, domain=pyo.NonNegativeReals)
+    model.charge = pyo.Var(
+        model.t, 
+        model.n, 
+        domain=pyo.NonNegativeReals, 
+        initialize = lambda m, t, n: solution.MCharge[t-1, n-1],
+        )
+    model.discharge = pyo.Var(
+        model.t, 
+        model.n, 
+        domain=pyo.NonNegativeReals, 
+        initialize = lambda m, t, n: solution.MDischarge[t-1, n-1],
+        )
+    model.storage = pyo.Var(
+        model.t, 
+        model.n, 
+        domain=pyo.NonNegativeReals, 
+        initialize = lambda m, t, n: solution.MStorage[t-1, n-1],
+        )
+    model.hydro = pyo.Var(
+        model.t, 
+        model.n, 
+        domain=pyo.NonNegativeReals, 
+        initialize = lambda m, t, n: solution.MHydro[t-1, n-1],
+        )
+    model.bio = pyo.Var(
+        model.t, 
+        model.n, 
+        domain=pyo.NonNegativeReals, 
+        initialize = lambda m, t, n: solution.MBio[t-1, n-1],
+        )
+    model.gas = pyo.Var(
+        model.t, 
+        model.n, 
+        domain=pyo.NonNegativeReals, 
+        initialize = lambda m, t, n: solution.MGas[t-1, n-1],
+        )
     
-    model.constr_charge_power_upper = pyo.Constraint(model.t, rule=lambda m, t: m.charge[t] <= solution.GCPHP)
-    model.constr_charge_power_lower = pyo.Constraint(model.t, rule=lambda m, t: m.charge[t] >= 0)
-    model.constr_discharge_power_upper = pyo.Constraint(model.t, rule=lambda m, t: m.discharge[t] <= solution.GCPHP)
-    model.constr_discharge_power_lower = pyo.Constraint(model.t, rule=lambda m, t: m.discharge[t] >= 0)
-    model.constr_storage_energy_upper = pyo.Constraint(model.t, rule=lambda m, t: m.storage[t] <= solution.CPHS)
-    model.constr_storage_energy_lower = pyo.Constraint(model.t, rule=lambda m, t: m.storage[t] >= 0)
+    model.constr_charge_power_upper = pyo.Constraint(model.t, rule=lambda m, t, n: m.charge[t, n] <= solution.CPHP[n-1])
+    model.constr_charge_power_lower = pyo.Constraint(model.t, rule=lambda m, t, n: m.charge[t, n] >= 0)
+    model.constr_discharge_power_upper = pyo.Constraint(model.t, rule=lambda m, t, n: m.discharge[t, n] <= solution.CPHP[n-1])
+    model.constr_discharge_power_lower = pyo.Constraint(model.t, rule=lambda m, t, n: m.discharge[t, n] >= 0)
+    model.constr_storage_energy_upper = pyo.Constraint(model.t, rule=lambda m, t, n: m.storage[t, n] <= solution.CPHS[n-1])
+    model.constr_storage_energy_lower = pyo.Constraint(model.t, rule=lambda m, t, n: m.storage[t, n] >= 0)
     
-    model.constr_hydro_power_upper = pyo.Constraint(model.t, rule=lambda m, t: m.hydro[t] <= GCHydro)
-    model.constr_hydro_power_lower = pyo.Constraint(model.t, rule=lambda m, t: m.hydro[t] >= 0)
-    model.constr_bio_power_upper = pyo.Constraint(model.t, rule=lambda m, t: m.bio[t] <= GCBio)
-    model.constr_bio_power_lower = pyo.Constraint(model.t, rule=lambda m, t: m.bio[t] >= 0)
-    model.constr_gas_power_upper = pyo.Constraint(model.t, rule=lambda m, t: m.gas[t] <= m.GCGas)
-    # model.constr_gas_power_upper = pyo.Constraint(model.t, rule=lambda m, t: m.gas[t] <= GCGas)
-    model.constr_gas_power_lower = pyo.Constraint(model.t, rule=lambda m, t: m.gas[t] >= 0)
+    model.constr_hydro_power_upper = pyo.Constraint(model.t, rule=lambda m, t, n: m.hydro[t, n] <= solution.CHydro[n-1])
+    model.constr_hydro_power_lower = pyo.Constraint(model.t, rule=lambda m, t, n: m.hydro[t] >= 0)
+    model.constr_bio_power_upper = pyo.Constraint(model.t, rule=lambda m, t, n: m.bio[t, n] <= solution.CBio[n-1])
+    model.constr_bio_power_lower = pyo.Constraint(model.t, rule=lambda m, t, n: m.bio[t, n] >= 0)
+    model.constr_gas_power_upper = pyo.Constraint(model.t, rule=lambda m, t, n: m.gas[t, n] <= m.CGas[n-1])
+    model.constr_gas_power_lower = pyo.Constraint(model.t, rule=lambda m, t, n: m.gas[t, n] >= 0)
     
     model.constr_max_hydro = pyo.Constraint(rule=lambda m: pyo.summation(m.hydro)*solution.resolution/solution.years <= solution.Hydro_res)
     model.constr_max_bio   = pyo.Constraint(rule=lambda m: pyo.summation(m.bio)*solution.resolution/solution.years <= solution.Bio_res) 
 
-    def constr_state_of_charge(m, t):
+    def constr_state_of_charge(m, t, n):
         if t==1:
-            return m.storage[t] == 0.5 * solution.CPHS - m.discharge[t] * solution.resolution + m.charge[t] * solution.resolution * solution.efficiency
+            return m.storage[t, n] == 0.5 * solution.CPHS[n-1] - m.discharge[t, n] * solution.resolution + m.charge[t, n] * solution.resolution * solution.efficiency
         else:
-            return m.storage[t] == m.storage[t-1] - m.discharge[t] * solution.resolution + m.charge[t] * solution.resolution * solution.efficiency
+            return m.storage[t, n] == m.storage[t-1, n] - m.discharge[t, n] * solution.resolution + m.charge[t, n] * solution.resolution * solution.efficiency
     
-    model.constr_storage_state_of_charge = pyo.Constraint(model.t, rule=constr_state_of_charge)
+    model.constr_storage_state_of_charge = pyo.Constraint(model.t, model.n, rule=constr_state_of_charge)
         
-    def expr_energy_balance(m, t):
-        return (solution.MLoad[t-1].sum()
-                + m.charge[t] 
-                - solution.MPV[t-1].sum()
-                - solution.MOnsW[t-1].sum()
-                - solution.CBaseload.sum()
-                - m.hydro[t] 
-                - m.bio[t] 
-                - m.gas[t]
-                - m.discharge[t] 
+    def expr_energy_balance(m, t, n):
+        return (solution.MLoad[t-1, n]
+                + m.charge[t, n] 
+                - solution.MPV[t-1, n]
+                - solution.MOnsW[t-1, n]
+                - solution.CBaseload[n-1]
+                - m.hydro[t, n]
+                - m.bio[t, n] 
+                - m.gas[t, n]
+                - m.discharge[t, n] 
                 )
     
     model.energy_balance = pyo.Expression(model.t, rule=expr_energy_balance)
@@ -87,12 +116,18 @@ if __name__ == '__main__':
     from Input import * 
     from Simulation import Reliability
     
+    costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask).CostFactors()
+    
     x = np.genfromtxt('Results/Optimisation_resultx{}.csv'.format(scenario), delimiter=',', dtype=float)
    
     solution = Solution(x)
+    solution._evaluate(costs)
+    
     solution.CGas = 2/5*np.ones(5)
     model = Fill_linear(solution)
     
+    
+    # This is likely now broken \/
     GHydro = np.array([model.hydro[i].value for i in model.hydro])
     GBio   = np.array([model.bio[i].value   for i in model.bio])
     GGas   = np.array([model.gas[i].value   for i in model.gas])

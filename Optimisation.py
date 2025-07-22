@@ -11,16 +11,16 @@ from scipy.optimize import differential_evolution
 from datetime import datetime as dt
 
 from Input import *
-from Timekeeper import PrintTimekeeper
+from Timekeeper import PrintTimekeeper, keeptime, timekeeper
 from Fileprinter import Fileprinter
 
-@keeptime('Objective')
+# @keeptime('Objective', TK_SWITCH)
 def ObjectiveWrapper(xs, costs, fileprinter):
     result = ObjectiveParallel(xs.T, costs)
     fileprinter(result[:, 1:]) 
     return result[:, 0]
 
-@keeptime('ObjectiveParallel')
+# @keeptime('ObjectiveParallel', TK_SWITCH)
 @njit(parallel=True)
 def ObjectiveParallel(xs, costs):
     result = np.empty((len(xs), 16), dtype=np.float64)
@@ -77,7 +77,7 @@ class CallbackClass:
         self.it+=1
         return False
     
-@keeptime('Optimiser')
+# @keeptime('Optimiser', TK_SWITCH)
 def Optimise(costs, init='latinhypercube', x0=None, callback_args=()):
     # print(args.i, args.ml, args.mu, args.p)
     

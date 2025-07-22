@@ -18,7 +18,7 @@ parser.add_argument('-res', default=1, type=int, required=False, help='Boolean -
 args = parser.parse_args()
 scenario = args.s
 
-from Timekeeper import keeptime, timekeeper, timekeeper_names
+# from Timekeeper import keeptime, timekeeper
 
 from Costs import Raw_Costs
 from Network import Transmission
