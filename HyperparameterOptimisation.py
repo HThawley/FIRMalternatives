@@ -48,19 +48,18 @@ def generate_samples(x, n, width, rng):
 @njit 
 def unnormalise(arr, lb, ub):
     return arr * (ub - lb) + lb
-    
 
 if INIT: 
-    x0 = np.stack((ub, (ub+lb)/2, lb))
-    ObjectiveWrapper(x0, costs, fileprinter)
+    x = np.stack((ub, (ub+lb)/2, lb)).T
+    ObjectiveWrapper(x, costs, fileprinter)
 
 n_inputs = len(lb)
-x = np.empty((BATCHSIZE, n_inputs))
+x = np.empty((BATCHSIZE, n_inputs), np.float64)
 
 rng = np.random.default_rng(RANDOMSEED)
 for _ in tqdm(range(ITERATIONS)):
     x = unnormalise(x, lb, ub)
-    ObjectiveWrapper(x0, costs, fileprinter)
+    ObjectiveWrapper(x, costs, fileprinter)
 fileprinter.Terminate()
 
         
