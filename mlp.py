@@ -190,26 +190,31 @@ class MLPmodel:
         metadata["num_inputs"] = self.num_inputs
         metadata["scaler_mean"] = self.scaler_mean.tolist()
         metadata["scaler_scale"] = self.scaler_scale.tolist()
+
+        metadata["activation"] = self.model.activation
+        metadata["hidden_layer_sizes"] = list(self.model.hidden_layer_sizes)
+        metadata["n_layers_"] = self.model.n_layers_
+        metadata["n_iter_"] = self.model.n_iter_
+        metadata["n_iter_no_change"] = self.model.n_iter_no_change
+        metadata["n_outputs_"] = self.model.n_outputs_
+        metadata["out_activation_"] = self.model.out_activation_
+        metadata["t_"] = self.model.t_
         
         for k, v in metadata.items():
             assert v is not None, f"Cannot save an untrained model. ({k} is None)"
         
         for k, v in self.mlp_params.items():
-            metadata[k] = v
+            if k not in self.mlp_params.keys():
+                metadata[k] = v
         
-        try: 
-            layers = [layer.shape for layer in self.model.intercepts_][:-1]
-            metadata["layers"] = layers
-            for i in range(len(layers)+1):
-                metadata[f"intercepts_{i}"] = self.model.intercepts_[i].tolist()
-                metadata[f"coefs_{i}"] = self.model.coefs_[i].tolist()
-        except Exception as E:
-            raise E("Model not trained properly. Cannot save")
+        for i in range(self.model.n_layers_ - 1):
+            metadata[f"intercepts_{i}"] = self.model.intercepts_[i].tolist()
+            metadata[f"coefs_{i}"] = self.model.coefs_[i].tolist()
 
         with open(filepath+".json", "w") as f:
             json.dump(metadata, f, indent=4)
         
-        print(f"Model saved successfully to {filepath}")
+        print(f"Model saved successfully to {filepath}.json")
 
     def load_model(self, filepath: str, verbose=True):
         """
@@ -230,25 +235,34 @@ class MLPmodel:
         self.scaler_mean = np.array(metadata["scaler_mean"])
         self.scaler_scale = np.array(metadata["scaler_scale"])
 
-        layers = [tuple(layer) for layer in metadata["layers"]]
-        
         mlp_params = {k: v for k, v in metadata.items() if 
-                      (k not in ("num_inputs", "scaler_mean", "scaler_scale", "layers", "hidden_layer_sizes"))
+                      (k not in ("num_inputs", "scaler_mean", "scaler_scale", 
+                                 "n_layers_", "n_iter_", "n_iter_no_change", 
+                                 "n_outputs_", "out_activation_", "t_", 
+                                 "activation", "hidden_layer_sizes"))
                       and ("coefs_" not in k) and ("intercepts_" not in k)}
         
         self.model = MLPRegressor(
-            hidden_layer_sizes = tuple(layers), 
+            hidden_layer_sizes = tuple(metadata["hidden_layer_sizes"]), 
+            activation = metadata["activation"],
             **mlp_params,
             )
         
-        self.model.coefs_ = [np.array(metadata[f"coefs_{i}"]) for i in range(len(layers) + 1)]
-        self.model.intercepts_ = [np.array(metadata[f"intercepts_{i}"]) for i in range(len(layers) + 1)]
+        self.model.n_layers_ = metadata["n_layers_"]
+        self.model.n_iter_ = metadata["n_iter_"]
+        self.model.n_iter_no_change = metadata["n_iter_no_change"]
+        self.model.n_outputs_ = metadata["n_outputs_"]
+        self.model.out_activation_ = metadata["out_activation_"]
+        self.model.t_ = metadata["t_"]
+        
+        self.model.coefs_ = [np.array(metadata[f"coefs_{i}"]) for i in range(self.model.n_layers_ - 1)]
+        self.model.intercepts_ = [np.array(metadata[f"intercepts_{i}"]) for i in range(self.model.n_layers_ - 1)]
 
         self._is_trained = True
         
         if verbose:
             print(f"Model loaded successfully. Time taken: {dt.now() - start}")
-
+#%%
 
 if __name__ == "__main__":
     STEP = 1
@@ -293,7 +307,7 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     model = MLPmodel()
-    if False: # os.path.exists(MODEL_FILE_PATH):
+    if False:# os.path.exists(MODEL_FILE_PATH+'.json'):
         print("Found existing model. Loading it.")
         model.load_model(MODEL_FILE_PATH)
     else:
@@ -302,7 +316,7 @@ if __name__ == "__main__":
         mlp_hyperparams = {
             "loss": "poisson",
             'hidden_layer_sizes': (128, 64),
-            'activation': 'tanh',
+            'activation': 'relu',
             'solver': 'adam',
             'alpha': 0.0001,
             'max_iter': 500,
@@ -311,8 +325,9 @@ if __name__ == "__main__":
             'verbose': True,
         }
         model.train(X_train, Y_train, **mlp_hyperparams)
-        model.save_model(MODEL_FILE_PATH, overwrite=True)
-
+        # model.save_model(MODEL_FILE_PATH, overwrite=True)
+        #%%
+        
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")
     print(f"Train set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
