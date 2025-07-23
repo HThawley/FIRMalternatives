@@ -13,13 +13,14 @@ from tqdm import tqdm
 from Input import * 
 from Fileprinter import Fileprinter
 from Optimisation import ObjectiveWrapper
+from mlp import MLPmodel
 
 #%%
-INIT = True
+INIT = False
 RANDOMSEED = None
 BATCHSIZE = cpu_count(True) * 10 
 ITERATIONS = None
-EVALUATIONS = 100_000
+EVALUATIONS = 1_000_000
 assert ITERATIONS is None or EVALUATIONS is None
 if ITERATIONS is None: 
     ITERATIONS = EVALUATIONS // BATCHSIZE + min(EVALUATIONS % BATCHSIZE, 1)
@@ -49,19 +50,20 @@ def generate_samples(x, n, width, rng):
 def unnormalise(arr, lb, ub):
     return arr * (ub - lb) + lb
 
-if INIT: 
-    x = np.stack((ub, (ub+lb)/2, lb)).T
-    ObjectiveWrapper(x, costs, fileprinter)
-
-n_inputs = len(lb)
-x = np.empty((BATCHSIZE, n_inputs), np.float64)
-
-rng = np.random.default_rng(RANDOMSEED)
-for _ in tqdm(range(ITERATIONS)):
-    x = unnormalise(x, lb, ub)
-    ObjectiveWrapper(x.T, costs, fileprinter)
-fileprinter.Terminate()
-
-        
+if __name__ == "__main__":
+    
+    if INIT: 
+        x = np.stack((ub, (ub+lb)/2, lb)).T
+        ObjectiveWrapper(x, costs, fileprinter)
+    
+    n_inputs = len(lb)
+    x = np.empty((BATCHSIZE, n_inputs), np.float64)
+    
+    rng = np.random.default_rng(RANDOMSEED)
+    for _ in tqdm(range(ITERATIONS)):
+        x = unnormalise(x, lb, ub)
+        ObjectiveWrapper(x.T, costs, fileprinter)
+    fileprinter.Terminate()
+    
     
     
