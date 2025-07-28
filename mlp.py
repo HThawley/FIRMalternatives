@@ -22,7 +22,6 @@ from time import perf_counter
 from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
 from Costs import Raw_Costs 
 from Optimisation import Optimise, Objective
-from ParameterSweep import calculate_costs, deduplicate_history
 from Timekeeper import keeptime, PrintTimekeeper, timekeeper
 
 np.set_printoptions(suppress=True)
@@ -311,21 +310,16 @@ if __name__ == "__main__":
     
     input_data= input_data.to_numpy()
     
-    # input_data = input_data[START::STEP, :]
-    # print(input_data.shape)
+    input_data = input_data[START::STEP, :]
+    print(input_data.shape)
     og_shape = input_data.shape
-    # rng = np.random.default_rng(seed=1)
-    # rng.shuffle(input_data)
+    rng = np.random.default_rng(seed=1)
+    rng.shuffle(input_data)
     
-    lcoes = calculate_costs(input_data, costs)
+    output_data = input_data[:, np.array([0, 2])]
+    input_data = input_data[:, 16:]
     
-    new = pd.DataFrame(np.concatenate((np.atleast_2d(lcoes).T, input_data), axis = 1))
-    new.to_csv("firmpoints.csv", index=False, header=False)
-    raise KeyboardInterrupt
-    output_data = np.stack((lcoes, input_data[:, 1])).T
-    input_data = input_data[:, 15:]
-    
-    cutoff = int(0.90*len(lcoes))
+    cutoff = int(0.90*len(input_data))
     
     Y_test = output_data[cutoff:, :]
     X_test = input_data[cutoff:, :]
@@ -338,7 +332,7 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     model = MLPmodel()
-    if os.path.exists(MODEL_FILE_PATH+'.json'):
+    if False: # os.path.exists(MODEL_FILE_PATH+'.json'):
         print("Found existing model. Loading it.")
         model.load_model(MODEL_FILE_PATH)
     else:
@@ -395,9 +389,13 @@ if __name__ == "__main__":
         Training set: {train_rmse:.6f}
         Testing set:  {test_rmse:.6f}
     
-    Statistics of the target variable ('lcoe'):
-        Mean:     {np.mean(lcoes):.4f}
-        Std Dev:  {np.std(lcoes):.4f}
+    Statistics of the first target variable ('lcoe'):
+        Mean:     {np.mean(Y_train[:, 0]):.4f}
+        Std Dev:  {np.std(Y_train[:, 0]):.4f}
+        
+    Statistics of the seconds target variable ('penalties'):
+        Mean:     {np.mean(Y_train[:, 1]):.4f}
+        Std Dev:  {np.std(Y_train[:, 1]):.4f}
     """)
 
 
