@@ -57,7 +57,9 @@ class MLPmodel:
         self.model = None
         self.scaler_mean = None
         self.scaler_scale = None
-        self.num_inputs = 0
+        self.num_inputs = None
+        self.num_outputs = None
+        self.mlp_params = {}
 
         if model_path is not None:
             self.load_model(model_path)
@@ -68,10 +70,11 @@ class MLPmodel:
         """
         assert isinstance(X, np.ndarray), "Input (X) should be a 2D numpy array"
         assert X.ndim == 2, "Input (X) should be a 2D numpy array"
-        assert isinstance(y, np.ndarray), "Output (y) should be a 1D numpy array"
-        assert y.ndim == 1, "Output (y) should be a 1D numpy array"
+        assert isinstance(y, np.ndarray), "Output (y) should be a 2D numpy array"
+        assert y.ndim == 2, "Output (y) should be a 2D numpy array. If only one output feature is required, use np.atleast_2d(...).T"
+        assert y.shape[1] == self.num_outputs, f"Input features should be {self.num_outputs}"
         assert X.shape[1] == self.num_inputs, f"Input features should be {self.num_inputs}"
-        assert X.shape[0] == y.shape[0], "Input (N, M) and output (N,) shapes should match"
+        assert X.shape[0] == y.shape[0], "Input (N, M) and output (N, K) shapes should match"
     
     def _create_scaler(self, X):
         scaler = StandardScaler()
@@ -102,7 +105,7 @@ class MLPmodel:
 
         Args:
             X_train (np.ndarray): The (N, M) array of training input features.
-            y_train (np.ndarray): The (N,) array of training output values.
+            y_train (np.ndarray): The (N, K) array of training output values.
             bounds (tuple): A tuple containing the lower (lb) and upper (ub)
                             bounds of the input features.
             mlp_params (dict, optional): Dictionary of parameters to pass to
@@ -110,13 +113,14 @@ class MLPmodel:
             verbose (bool, optional): If True, prints training progress. Defaults to True.
         """
         self.num_inputs = X.shape[1]
+        self.num_outputs = y.shape[1]
         self._data_assertions(X, y)
 
         start = dt.now()
         if verbose:
             print(f"Starting training at: {start}")
 
-        # 1. Preprocessing: Scale the input data
+        # Preprocessing
         if verbose:
             print("Fitting scaler and transforming training data...")
         X_scaled = self.preprocess(X)
@@ -124,7 +128,7 @@ class MLPmodel:
         self.mlp_params = mlp_params
         self.model = MLPRegressor(**mlp_params)
 
-        # 3. Model Training
+        # Model Training
         if verbose:
             print("Fitting MLP Regressor...")
         self.model.fit(X_scaled, y)
@@ -143,13 +147,16 @@ class MLPmodel:
             X (np.ndarray): The (N, M) array of input features for prediction.
 
         Returns:
-            np.ndarray: The (N,) array of predicted values.
+            np.ndarray: The (N, K) array of predicted values.
         """
         if not self._is_trained:
             raise RuntimeError("Model has not been trained yet. Call .train() first.")
         
-        X_scaled = self.preprocess(X)        
-        return self.model.predict(X_scaled)
+        X_scaled = self.preprocess(X)
+        prediction = self.model.predict(X_scaled)
+        if prediction.ndim == 1:
+            return prediction.reshape(-1, 1)
+        return prediction
 
     def score(self, y_true, y_pred, metric="r2_score"):
         """
@@ -165,7 +172,7 @@ class MLPmodel:
             float: The calculated score.
         """
         if metric == "r2_score":
-            return r2_score(y_true, y_pred)
+            return r2_score(y_true, y_pred, multioutput='uniform_average')
         elif metric == "mean_squared_error":
             return mean_squared_error(y_true, y_pred)
         else:
@@ -195,6 +202,7 @@ class MLPmodel:
 
         metadata = {}
         metadata["num_inputs"] = self.num_inputs
+        metadata["num_outputs"] = self.num_outputs
         metadata["scaler_mean"] = self.scaler_mean.tolist()
         metadata["scaler_scale"] = self.scaler_scale.tolist()
 
@@ -202,7 +210,6 @@ class MLPmodel:
         metadata["hidden_layer_sizes"] = list(self.model.hidden_layer_sizes)
         metadata["n_layers_"] = self.model.n_layers_
         metadata["n_iter_"] = self.model.n_iter_
-        metadata["n_iter_no_change"] = self.model.n_iter_no_change
         metadata["n_outputs_"] = self.model.n_outputs_
         metadata["out_activation_"] = self.model.out_activation_
         metadata["t_"] = self.model.t_
@@ -214,9 +221,12 @@ class MLPmodel:
             if k not in self.mlp_params.keys():
                 metadata[k] = v
         
-        for i in range(self.model.n_layers_ - 1):
-            metadata[f"intercepts_{i}"] = self.model.intercepts_[i].tolist()
-            metadata[f"coefs_{i}"] = self.model.coefs_[i].tolist()
+        metadata["coefs_"] = [c.tolist() for c in self.model.coefs_]
+        metadata["intercepts_"] = [i.tolist() for i in self.model.intercepts_]
+        
+        # for i in range(self.model.n_layers_ - 1):
+        #     metadata[f"intercepts_{i}"] = self.model.intercepts_[i].tolist()
+        #     metadata[f"coefs_{i}"] = self.model.coefs_[i].tolist()
 
         with open(filepath, "w") as f:
             json.dump(metadata, f, indent=4)
@@ -245,12 +255,14 @@ class MLPmodel:
         self.scaler_mean = np.array(metadata["scaler_mean"])
         self.scaler_scale = np.array(metadata["scaler_scale"])
 
-        mlp_params = {k: v for k, v in metadata.items() if 
-                      (k not in ("num_inputs", "scaler_mean", "scaler_scale", 
-                                 "n_layers_", "n_iter_", "n_iter_no_change", 
-                                 "n_outputs_", "out_activation_", "t_", 
-                                 "activation", "hidden_layer_sizes"))
-                      and ("coefs_" not in k) and ("intercepts_" not in k)}
+        constructor_params = [
+                    'solver', 'alpha', 'batch_size', 'learning_rate', 'learning_rate_init', 
+                    'power_t', 'max_iter', 'shuffle', 'random_state', 'tol', 'verbose', 
+                    'warm_start', 'momentum', 'nesterovs_momentum', 'early_stopping',
+                    'validation_fraction', 'beta_1', 'beta_2', 'epsilon',
+                    'n_iter_no_change', 'max_fun']
+
+        mlp_params = {k: metadata[k] for k in constructor_params if k in metadata}
         
         self.model = MLPRegressor(
             hidden_layer_sizes = tuple(metadata["hidden_layer_sizes"]), 
@@ -260,13 +272,15 @@ class MLPmodel:
         
         self.model.n_layers_ = metadata["n_layers_"]
         self.model.n_iter_ = metadata["n_iter_"]
-        self.model.n_iter_no_change = metadata["n_iter_no_change"]
         self.model.n_outputs_ = metadata["n_outputs_"]
         self.model.out_activation_ = metadata["out_activation_"]
         self.model.t_ = metadata["t_"]
         
-        self.model.coefs_ = [np.array(metadata[f"coefs_{i}"]) for i in range(self.model.n_layers_ - 1)]
-        self.model.intercepts_ = [np.array(metadata[f"intercepts_{i}"]) for i in range(self.model.n_layers_ - 1)]
+        # self.model.coefs_ = [np.array(metadata[f"coefs_{i}"]) for i in range(self.model.n_layers_ - 1)]
+        # self.model.intercepts_ = [np.array(metadata[f"intercepts_{i}"]) for i in range(self.model.n_layers_ - 1)]
+       
+        self.model.coefs_ = [np.array(c) for c in metadata["coefs_"]]
+        self.model.intercepts_ = [np.array(i) for i in metadata["intercepts_"]]
 
         self._is_trained = True
         
@@ -302,14 +316,16 @@ if __name__ == "__main__":
     rng.shuffle(input_data)
     
     lcoes = calculate_costs(input_data, costs)
+    
+    output_data = np.stack((lcoes, input_data[:, 1])).T
     input_data = input_data[:, 15:]
     
     cutoff = int(0.90*len(lcoes))
     
-    Y_test = lcoes[cutoff:]
+    Y_test = output_data[cutoff:, :]
     X_test = input_data[cutoff:, :]
     
-    Y_train = lcoes[:cutoff]
+    Y_train = output_data[:cutoff, :]
     X_train = input_data[:cutoff, :]
 
     print(f"Train set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
@@ -317,7 +333,7 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     model = MLPmodel()
-    if False:# os.path.exists(MODEL_FILE_PATH+'.json'):
+    if os.path.exists(MODEL_FILE_PATH+'.json'):
         print("Found existing model. Loading it.")
         model.load_model(MODEL_FILE_PATH)
     else:
