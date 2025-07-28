@@ -125,6 +125,13 @@ class MLPmodel:
             print("Fitting scaler and transforming training data...")
         X_scaled = self.preprocess(X)
 
+        try: 
+            mlp_params["hidden_layer_sizes"] = tuple(
+                (int(self.num_inputs * abs(multiple)) if multiple < 0 else multiple) 
+                for multiple in mlp_params["hidden_layer_sizes"])
+        except KeyError:
+            pass
+        
         self.mlp_params = mlp_params
         self.model = MLPRegressor(**mlp_params)
 
@@ -291,12 +298,9 @@ class MLPmodel:
 if __name__ == "__main__":
     STEP = 1
     START = 0
-    PREC = 2
-    MODEL_FILE_PATH = f"MLP_models/mlp-full-s{STEP}-s{START}-p{PREC}"
+    MODEL_FILE_PATH = f"MLP_models/mlp-full-s{STEP}-s{START}"
 
-    # CSV_FILE_PATH = "Results/Firmpoints-dedup{PREC}.csv"
     CSV_FILE_PATH = "Results/firmpoints.csv"
-
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
@@ -305,18 +309,19 @@ if __name__ == "__main__":
         header=None,
         )
     
-    # input_data = deduplicate_history(input_data, commit=False, precision=2, subset=list(range(15, input_data.shape[1])))
-    # input_data.to_csv("Results/Firmpoints-dedup2.csv", header=False, index=False)
     input_data= input_data.to_numpy()
     
-    input_data = input_data[START::STEP, :]
-    print(input_data.shape)
+    # input_data = input_data[START::STEP, :]
+    # print(input_data.shape)
     og_shape = input_data.shape
-    rng = np.random.default_rng(seed=1)
-    rng.shuffle(input_data)
+    # rng = np.random.default_rng(seed=1)
+    # rng.shuffle(input_data)
     
     lcoes = calculate_costs(input_data, costs)
     
+    new = pd.DataFrame(np.concatenate((np.atleast_2d(lcoes).T, input_data), axis = 1))
+    new.to_csv("firmpoints.csv", index=False, header=False)
+    raise KeyboardInterrupt
     output_data = np.stack((lcoes, input_data[:, 1])).T
     input_data = input_data[:, 15:]
     
@@ -341,7 +346,7 @@ if __name__ == "__main__":
         # These parameters are a good starting point but may need tuning
         mlp_hyperparams = {
             "loss": "poisson",
-            'hidden_layer_sizes': (128, 64),
+            'hidden_layer_sizes': (-2, -2),
             'activation': 'relu',
             'solver': 'adam',
             'alpha': 0.0001,
