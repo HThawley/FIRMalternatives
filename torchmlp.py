@@ -263,8 +263,8 @@ if __name__ == "__main__":
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
-        skiprows = 4_000_000,
-        nrows=20_000, 
+        # skiprows = 4_000_000,
+        # nrows=20_000, 
         header=None,
         )
     
@@ -299,12 +299,12 @@ if __name__ == "__main__":
         print("No existing model found. Training a new one.")
         # PyTorch-specific hyperparameters
         pytorch_params = {
-            'hidden_layer_sizes': (128, 64),
-            'epochs': 500,
+            'hidden_layer_sizes': (-2, -2),
+            'epochs': 1000,
             'batch_size': 512,
             'learning_rate': 0.001,
             'alpha':0.001,
-            'patience': 50, # For early stopping
+            'patience': 75, # For early stopping
         }
         model.train(X_train, Y_train, **pytorch_params)
         model.save_model(MODEL_FILE_PATH, overwrite=True)
