@@ -164,7 +164,7 @@ class MLPmodel:
             return prediction.reshape(-1, 1)
         return prediction
 
-    def score(self, y_true, y_pred, metric="r2_score"):
+    def score(self, y_true, y_pred, metric="r2_score", result=-1):
         """
         Evaluates the model's performance.
 
@@ -180,7 +180,10 @@ class MLPmodel:
         if metric == "r2_score":
             return r2_score(y_true, y_pred, multioutput='uniform_average')
         elif metric == "mean_squared_error":
-            return mean_squared_error(y_true, y_pred)
+            if result == -1:
+                return mean_squared_error(y_true, y_pred)
+            else:
+                return mean_squared_error(y_true[:,result], y_pred[:, result])
         else:
             raise ValueError(f"Unknown metric: {metric}")
 
@@ -350,7 +353,7 @@ if __name__ == "__main__":
             'verbose': True,
         }
         model.train(X_train, Y_train, **mlp_hyperparams)
-        # model.save_model(MODEL_FILE_PATH, overwrite=True)
+        model.save_model(MODEL_FILE_PATH, overwrite=True)
 #%%
         
     # --- Evaluation ---
@@ -363,8 +366,10 @@ if __name__ == "__main__":
     print(f"Time to evaluate {X_train.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
     print(f"    ({(1_000_000*(end-start)/X_train.shape[0])} micro_s solution)")
     train_r2 = model.score(Y_train, pred_train, "r2_score")
-    train_mse = model.score(Y_train, pred_train, "mean_squared_error")
-    train_rmse = rmse(Y_train, pred_train)
+    train_mse_cost = model.score(Y_train[:, 0], pred_train[:, 0], "mean_squared_error")
+    train_mse_pen  = model.score(Y_train[:, 1], pred_train[:, 1], "mean_squared_error")
+    train_rmse_cost = rmse(Y_train[:, 0], pred_train[:, 0])
+    train_rmse_pen  = rmse(Y_train[:, 1], pred_train[:, 1])
 
     # Evaluate on the testing set
     start = perf_counter()
@@ -373,27 +378,37 @@ if __name__ == "__main__":
     print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f}. ms")
     print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
     test_r2 = model.score(Y_test, pred_test, "r2_score")
-    test_mse = model.score(Y_test, pred_test, "mean_squared_error")
-    test_rmse = rmse(Y_test, pred_test)
+    test_mse_cost = model.score(Y_test[:, 0], pred_test[:, 0], "mean_squared_error")
+    test_mse_pen  = model.score(Y_test[:, 1], pred_test[:, 1], "mean_squared_error")
+    test_rmse_cost = rmse(Y_test[:, 0], pred_test[:, 0])
+    test_rmse_pen = rmse(Y_test[:, 1], pred_test[:, 1])
 
     print(f"""
     R-squared (R²):
         Training set: {train_r2:.6f}
         Testing set:  {test_r2:.6f}
 
-    Mean Squared Error (MSE):
-        Training set: {train_mse:.6f}
-        Testing set:  {test_mse:.6f}
+    Mean Squared Error Cost (MSE): 
+        Training set: {train_mse_cost:.6f}
+        Testing set:  {test_mse_cost:.6f}
+        
+    Mean Squared Error Penalties (MSE):
+        Training set: {train_mse_cost:.6f}
+        Testing set:  {test_mse_cost:.6f}
 
-    Root Mean Squared Error (RMSE):
-        Training set: {train_rmse:.6f}
-        Testing set:  {test_rmse:.6f}
+    Root Mean Squared Error Cost (RMSE):
+        Training set: {train_rmse_cost:.6f}
+        Testing set:  {test_rmse_pen:.6f}
     
-    Statistics of the first target variable ('lcoe'):
+    Root Mean Squared Error Penalties (RMSE):
+        Training set: {train_rmse_cost:.6f}
+        Testing set:  {test_rmse_pen:.6f}
+    
+    Statistics of Cost:
         Mean:     {np.mean(Y_train[:, 0]):.4f}
         Std Dev:  {np.std(Y_train[:, 0]):.4f}
         
-    Statistics of the seconds target variable ('penalties'):
+    Statistics of Penalties:
         Mean:     {np.mean(Y_train[:, 1]):.4f}
         Std Dev:  {np.std(Y_train[:, 1]):.4f}
     """)
