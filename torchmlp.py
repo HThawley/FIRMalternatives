@@ -247,7 +247,7 @@ class MLPmodel:
         self.scaler_mean = state['scaler_mean']
         self.scaler_scale = state['scaler_scale']
 
-        self.model = _Net(self.num_inputs, self.num_outputs, self.hidden_layer_sizes).to(self.device)
+        self.model = _Net(self.num_inputs, self.num_outputs, self.hidden_layer_sizes, self.alpha).to(self.device)
         self.model.load_state_dict(state['model_state_dict'])
         
         self._is_trained = True
