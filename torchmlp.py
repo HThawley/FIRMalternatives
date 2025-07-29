@@ -46,7 +46,8 @@ class _Net(nn.Module):
         input_size = num_inputs
         for hidden_size in hidden_layer_sizes:
             layers.append(nn.Linear(input_size, hidden_size))
-            layers.append(nn.LeakyReLU(alpha)) # Using Leaky ReLU 
+            # layers.append(nn.LeakyReLU(alpha)) # Using Leaky ReLU 
+            layers.append(nn.Softmax(dim=1)) # Using Leaky ReLU 
             input_size = hidden_size
         layers.append(nn.Linear(input_size, num_outputs))
         self.network = nn.Sequential(*layers)
@@ -257,7 +258,7 @@ class MLPmodel:
 if __name__ == "__main__":
     STEP = 1
     START = 0
-    MODEL_FILE_PATH = f"MLP_models/mlp-pt-s{STEP}-s{START}"
+    MODEL_FILE_PATH = f"MLP_models/mlp-pt-softmax-s{STEP}-s{START}"
 
     CSV_FILE_PATH = "Results/firmpoints.csv"
 
