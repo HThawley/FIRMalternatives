@@ -12,6 +12,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from datetime import datetime as dt
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
+from scipy.stats import spearmanr
 import os
 from pathlib import Path
 from numba import njit
@@ -256,7 +257,7 @@ class MLPmodel:
 #%%
 
 if __name__ == "__main__":
-    MODEL_FILE_PATH = "MLP_models/mlp-pen-nopt"
+    MODEL_FILE_PATH = "MLP_models/mlp-nopt"
 
     CSV_FILE_PATH = "Results/firmpoints.csv"
 
@@ -294,13 +295,23 @@ if __name__ == "__main__":
     # 
     #  -> we should train the model on many many many more near-optimal points than under/overbuilt
 
-    
+
     # arbitrarily pick 50% cost slack
     cost_slack = 0.5
     cost_slack += 1
     objective = input_data[:, 0] + input_data[:, 2] # cost + penalties
     
-    output_data = input_data[:, np.array([0, 2])] # penalties only
+    
+    preds = [
+        "cost", 
+        "penalties", 
+        ]
+    # Update below based on preds
+    output_data = input_data[:, np.array([0, 2])] 
+    # output_data = input_data[:, 0] # cost only
+    # output_data = input_data[:, 2] # penalties only
+    
+    
     input_data = input_data[:, 16:] # trim excess statistics
     
     sort_cost = np.argsort(objective)
@@ -337,9 +348,10 @@ if __name__ == "__main__":
     print(f"Train set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
 
     # --- Model Training or Loading ---
-    model = MLPmodel()
-    if os.path.exists(MODEL_FILE_PATH + '.pt'):
+    
+    if False: #os.path.exists(MODEL_FILE_PATH + '.pt'):
         print("Found existing model. Loading it.")
+        model = MLPmodel()
         model.load_model(MODEL_FILE_PATH)
     else:
         print("No existing model found. Training a new one.")
@@ -353,48 +365,57 @@ if __name__ == "__main__":
             'patience': 75, # For early stopping
             'weight_decay':1e-5, # L2 regularization
         }
-        model.train(X_train, Y_train, **pytorch_params)
-        model.save_model(MODEL_FILE_PATH, overwrite=True)
+        if "cost" in preds:
+            cost_model = MLPmodel()
+            cost_model.train(X_train, np.atleast_2d(Y_train[:, 0]).T, **pytorch_params) # cost
+            cost_model.save_model(MODEL_FILE_PATH+"-cost", overwrite=True)
+        if "penalties" in preds:
+            pen_model = MLPmodel()
+            pen_model.train(X_train, np.atleast_2d(Y_train[:, 1]).T, **pytorch_params) # penalties
+            pen_model.save_model(MODEL_FILE_PATH+"-pen", overwrite=True)
+        
 #%%
         
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")
     
-    preds = [
-        # "cost", 
-        "penalties", 
-        ]
-    
+    models = [cost_model if pred == "cost" else 
+              pen_model if pred == "penalties" else None 
+              for pred in preds]
+   
     # Evaluate on the training set
     start = perf_counter()
-    pred_train = model.predict(X_train)
+    pred_train = [model.predict(X_train) for n, model in enumerate(models)]
     end = perf_counter()
     print(f"Time to evaluate {X_train.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
     print(f"    ({(1_000_000*(end-start)/X_train.shape[0]):.4f} micro_s per solution)")
-    train_r2 = model.score(Y_train, pred_train, "r2_score")
-    train_mse = [model.score(Y_train[:, n], pred_train[:, n], "mean_squared_error") for n, _ in enumerate(preds)]
-    train_rmse = [rmse(Y_train[:, n], pred_train[:, n]) for n, _ in enumerate(preds)]
+    train_r2 = [model.score(Y_train[:, n], pred_train[n], "r2_score") for n, model in enumerate(models)]
+    train_mse = [model.score(Y_train[:, n], pred_train[n], "mean_squared_error") for n, model in enumerate(models)]
+    train_rmse = [rmse(Y_train[:, n], pred_train[n]) for n, model in enumerate(models)]
+    train_spea = [spearmanr(Y_train[:, n], pred_train[n]) for n, model in enumerate(models)]
 
     # Evaluate on the testing set
     start = perf_counter()
-    pred_test = model.predict(X_test)
+    pred_test = [model.predict(X_test) for n, model in enumerate(models)]
     end = perf_counter()
     print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
     print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
-    test_r2 = model.score(Y_test, pred_test, "r2_score")
-    test_mse = [model.score(Y_test[:, n], pred_test[:, n], "mean_squared_error") for n, _ in enumerate(preds)]
-    test_rmse = [rmse(Y_test[:, n], pred_test[:, n]) for n, _ in enumerate(preds)]
+    test_r2 = [model.score(Y_test[:, n], pred_test[n], "r2_score") for n, model in enumerate(models)]
+    test_mse = [model.score(Y_test[:, n], pred_test[n], "mean_squared_error") for n, model in enumerate(models)]
+    test_rmse = [rmse(Y_test[:, n], pred_test[n]) for n, model in enumerate(models)]
+    test_spea = [spearmanr(Y_test[:, n], pred_test[n]) for n, model in enumerate(models)]
 
-    # Evaluate on the testing set
+    # Evaluate on the non-optimal set
     start = perf_counter()
-    pred_test = model.predict(non_optimal_input)
+    pred_nonopt = [model.predict(non_optimal_input) for n, model in enumerate(models)]
     end = perf_counter()
     print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
     print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
-    nonopt_r2 = model.score(non_optimal_output, pred_test, "r2_score")
-    nonopt_mse = [model.score(non_optimal_output[:, n], pred_test[:, n], "mean_squared_error") for n, _ in enumerate(preds)]
-    nonopt_rmse = [rmse(non_optimal_output[:, n], pred_test[:, n]) for n, _ in enumerate(preds)]
-
+    nonopt_r2 = [model.score(non_optimal_output[:, n], pred_nonopt[n], "r2_score") for n, model in enumerate(models)]
+    nonopt_mse = [model.score(non_optimal_output[:, n], pred_nonopt[n], "mean_squared_error") for n, model in enumerate(models)]
+    nonopt_rmse = [rmse(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
+    nonopt_spea = [spearmanr(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
+#%%
     printstr=""
     for n, pred in enumerate(preds): 
         printstr += f"""
@@ -417,20 +438,24 @@ if __name__ == "__main__":
             Sparsity: {np.isclose(non_optimal_output[:, n], 0).sum()} / {non_optimal_output.shape[0]} zeros
         
     {pred} - Mean Squared Error (MSE): 
-        Training set: {train_mse[n]:.6f}
-        Testing set:  {test_mse[n]:.6f}
-        non-optimal:  {nonopt_mse[n]:.6f}
+        Training set: {train_mse[n]:.6f}  ({100*train_mse[n]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
+        Testing set:  {test_mse[n]:.6f}  ({100*test_mse[n]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
+        non-optimal:  {nonopt_mse[n]:.6f}  ({100*nonopt_mse[n]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
 
     {pred} - Root Mean Squared Error Cost (RMSE):
-        Training set: {train_rmse[n]:.6f}
-        Testing set:  {test_rmse[n]:.6f}
-        non-optimal:  {nonopt_rmse[n]:.6f}
-"""        
-    printstr+=f"""
-    R-squared (R²):
-        Training set: {train_r2:.6f}
-        Testing set:  {test_r2:.6f}
-        non-optimal:  {nonopt_r2:.6f}
+        Training set: {train_rmse[n]:.6f}  ({100*train_rmse[n]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
+        Testing set:  {test_rmse[n]:.6f}  ({100*test_rmse[n]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
+        non-optimal:  {nonopt_rmse[n]:.6f}  ({100*nonopt_rmse[n]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
+
+    {pred} - spearman rank correlation:
+        Training set: {train_spea[n][0]:.6f} (pvalue: {train_spea[n][1]})
+        Testing set:  {test_spea[n][0]:.6f} (pvalue: {test_spea[n][1]})
+        non-optimal:  {nonopt_spea[n][0]:.6f} (pvalue: {nonopt_spea[n][1]})
+
+    {pred} - R-squared (R²):
+        Training set: {train_r2[n]:.6f} 
+        Testing set:  {test_r2[n]:.6f}
+        non-optimal:  {nonopt_r2[n]:.6f}
 """
     print(printstr)
 
