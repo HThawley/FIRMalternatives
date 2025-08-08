@@ -313,6 +313,7 @@ if __name__ == "__main__":
     
     
     input_data = input_data[:, 16:] # trim excess statistics
+    og_shape = input_data.shape
     
     sort_cost = np.argsort(objective)
     near_optimal_idx = np.where(
@@ -416,7 +417,18 @@ if __name__ == "__main__":
     nonopt_rmse = [rmse(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
     nonopt_spea = [spearmanr(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
 #%%
-    printstr=""
+    printstr=f"""
+full input data: {og_shape}
+near-optimal {int(100*(cost_slack-1))} % data: {near_optimal_input.shape}
+non-optimal {int(100*(cost_slack-1))} % data: {non_optimal_input.shape}
+
+Train set size: {X_train.shape[0]}
+Test set size: {X_test.shape[0]}
+Non-optimal set size: {non_optimal_input.shape[0]}
+
+Training & validating on near-optimal data. Testing on all data
+"""
+    
     for n, pred in enumerate(preds): 
         printstr += f"""
     Statistics of {pred}:
