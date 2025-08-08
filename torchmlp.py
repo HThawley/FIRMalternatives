@@ -46,8 +46,7 @@ class _Net(nn.Module):
         input_size = num_inputs
         for hidden_size in hidden_layer_sizes:
             layers.append(nn.Linear(input_size, hidden_size))
-            # layers.append(nn.LeakyReLU(alpha)) # Using Leaky ReLU 
-            layers.append(nn.Softmax(dim=1)) # Using Leaky ReLU 
+            layers.append(nn.LeakyReLU(alpha)) # Using Leaky ReLU 
             input_size = hidden_size
         layers.append(nn.Linear(input_size, num_outputs))
         self.network = nn.Sequential(*layers)
@@ -115,8 +114,9 @@ class MLPmodel:
         learning_rate = train_params.get('learning_rate', 0.001)
         self.hidden_layer_sizes = train_params.get('hidden_layer_sizes', (128, 64))
         patience = train_params.get('patience', 50) # For early stopping
-        self.alpha = train_params.get('alpha', 50) # For early stopping
-
+        weight_decay = train_params.get('weight_decay', 1e-5) # L2 Regularization
+        self.alpha = train_params.get('alpha', 0.001) # L2 Regularization
+        
         # --- Data Preparation ---
         X_scaled = self.preprocess(X)
         X_tensor = torch.FloatTensor(X_scaled).to(self.device)
@@ -134,7 +134,7 @@ class MLPmodel:
         # --- Model Initialization ---
         self.model = _Net(self.num_inputs, self.num_outputs, self.hidden_layer_sizes, self.alpha).to(self.device)
         criterion = nn.MSELoss()
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
         # --- Training Loop ---
         start = dt.now()
@@ -256,38 +256,83 @@ class MLPmodel:
 #%%
 
 if __name__ == "__main__":
-    STEP = 1
-    START = 0
-    MODEL_FILE_PATH = f"MLP_models/mlp-pt-softmax-s{STEP}-s{START}"
+    MODEL_FILE_PATH = "MLP_models/mlp-pen-nopt"
 
     CSV_FILE_PATH = "Results/firmpoints.csv"
 
     input_data = pd.read_csv(
         CSV_FILE_PATH, 
-        # skiprows = 4_000_000,
-        # nrows=20_000, 
         header=None,
         )
     
     input_data= input_data.to_numpy()
+
+    ### Justification of training data trimming.
+    # Divide FIRM solutions into 3 regions: 
+    #     * Highly overbuilt: very large capex, 
+    #                         very low opex, 
+    #                         almost always technically feasible, 
+    #                         penalties = 0,
+    #           -> FIRM is approximately linear
+    #     * Near optimal: (usually) large capex, 
+    #                     (usually) low opex, 
+    #                     technical feasibility is highly variable, 
+    #                     penalties is 0 or relatively low
+    #           -> FIRM is highly non-linear and peaky
+    #     * Highly underbuilt: very low capex, 
+    #                          very high or very low opex, 
+    #                          almost always infeasible, 
+    #                          penalties is large
+    #           -> FIRM is largely monotonic
+    # 
+    # We want the mlp to have similar topology to the firm function overall. 
+    # Building off these conceptions:
+    #    * A low degree of surrogate complexity is needed to model the 
+    #             overbuilt and underbuilt regions. 
+    #    * A very high degree of surrogate complexity is needed to model the 
+    #             near-optimal region
+    # 
+    #  -> we should train the model on many many many more near-optimal points than under/overbuilt
+
     
-    input_data = input_data[START::STEP, :]
-    print(input_data.shape)
-    og_shape = input_data.shape
-    rng = np.random.default_rng(seed=1)
-    rng.shuffle(input_data)
+    # arbitrarily pick 50% cost slack
+    cost_slack = 0.5
+    cost_slack += 1
+    objective = input_data[:, 0] + input_data[:, 2] # cost + penalties
     
-    output_data = input_data[:, np.array([0, 2])]
-    input_data = input_data[:, 16:]
+    output_data = input_data[:, np.array([0, 2])] # penalties only
+    input_data = input_data[:, 16:] # trim excess statistics
     
-    cutoff = int(0.90*len(input_data))
+    sort_cost = np.argsort(objective)
+    near_optimal_idx = np.where(
+        objective[sort_cost] < objective[sort_cost[0]] * cost_slack)[0][-1] # last index where near-optimal
     
-    Y_test = output_data[cutoff:, :]
-    X_test = input_data[cutoff:, :]
-    
-    Y_train = output_data[:cutoff, :]
-    X_train = input_data[:cutoff, :]
+    print("full input data:", input_data.shape)
+    near_optimal_input = input_data[sort_cost[:near_optimal_idx], :]
+    non_optimal_input = input_data[sort_cost[near_optimal_idx:], :]
     del input_data
+    near_optimal_output = output_data[sort_cost[:near_optimal_idx], :]
+    non_optimal_output = output_data[sort_cost[near_optimal_idx:], :]
+
+    print(f"near-optimal {int(100*(cost_slack-1))} % data:", near_optimal_input.shape)
+    print(f"non-optimal {int(100*(cost_slack-1))} % data:", non_optimal_input.shape)
+    
+    print("Training & validating on near-optimal data. Testing on all data")
+    rng = np.random.default_rng(seed=1)
+    shuffleidx = np.arange(len(near_optimal_input))
+    rng.shuffle(shuffleidx)
+    
+    near_optimal_input = near_optimal_input[shuffleidx]
+    near_optimal_output = near_optimal_output[shuffleidx]
+    del shuffleidx
+    
+    cutoff = int(0.90*len(near_optimal_input))
+    
+    Y_test = near_optimal_output[cutoff:, :]
+    X_test = near_optimal_input[cutoff:, :]
+    
+    Y_train = near_optimal_output[:cutoff, :]
+    X_train = near_optimal_input[:cutoff, :]
     
     print(f"Train set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
 
@@ -306,6 +351,7 @@ if __name__ == "__main__":
             'learning_rate': 0.001,
             'alpha':0.001,
             'patience': 75, # For early stopping
+            'weight_decay':1e-5, # L2 regularization
         }
         model.train(X_train, Y_train, **pytorch_params)
         model.save_model(MODEL_FILE_PATH, overwrite=True)
@@ -314,6 +360,11 @@ if __name__ == "__main__":
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")
     
+    preds = [
+        # "cost", 
+        "penalties", 
+        ]
+    
     # Evaluate on the training set
     start = perf_counter()
     pred_train = model.predict(X_train)
@@ -321,10 +372,8 @@ if __name__ == "__main__":
     print(f"Time to evaluate {X_train.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
     print(f"    ({(1_000_000*(end-start)/X_train.shape[0]):.4f} micro_s per solution)")
     train_r2 = model.score(Y_train, pred_train, "r2_score")
-    train_mse_cost = model.score(Y_train[:, 0], pred_train[:, 0], "mean_squared_error")
-    train_mse_pen  = model.score(Y_train[:, 1], pred_train[:, 1], "mean_squared_error")
-    train_rmse_cost = rmse(Y_train[:, 0], pred_train[:, 0])
-    train_rmse_pen  = rmse(Y_train[:, 1], pred_train[:, 1])
+    train_mse = [model.score(Y_train[:, n], pred_train[:, n], "mean_squared_error") for n, _ in enumerate(preds)]
+    train_rmse = [rmse(Y_train[:, n], pred_train[:, n]) for n, _ in enumerate(preds)]
 
     # Evaluate on the testing set
     start = perf_counter()
@@ -333,38 +382,57 @@ if __name__ == "__main__":
     print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
     print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
     test_r2 = model.score(Y_test, pred_test, "r2_score")
-    test_mse_cost = model.score(Y_test[:, 0], pred_test[:, 0], "mean_squared_error")
-    test_mse_pen  = model.score(Y_test[:, 1], pred_test[:, 1], "mean_squared_error")
-    test_rmse_cost = rmse(Y_test[:, 0], pred_test[:, 0])
-    test_rmse_pen = rmse(Y_test[:, 1], pred_test[:, 1])
+    test_mse = [model.score(Y_test[:, n], pred_test[:, n], "mean_squared_error") for n, _ in enumerate(preds)]
+    test_rmse = [rmse(Y_test[:, n], pred_test[:, n]) for n, _ in enumerate(preds)]
 
+    # Evaluate on the testing set
+    start = perf_counter()
+    pred_test = model.predict(non_optimal_input)
+    end = perf_counter()
+    print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
+    print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
+    nonopt_r2 = model.score(non_optimal_output, pred_test, "r2_score")
+    nonopt_mse = [model.score(non_optimal_output[:, n], pred_test[:, n], "mean_squared_error") for n, _ in enumerate(preds)]
+    nonopt_rmse = [rmse(non_optimal_output[:, n], pred_test[:, n]) for n, _ in enumerate(preds)]
 
-    print(f"""
+    printstr=""
+    for n, pred in enumerate(preds): 
+        printstr += f"""
+    Statistics of {pred}:
+        near-optimal: 
+                Mean:     {np.mean(near_optimal_output[:, n]):.4f}
+                Std Dev:  {np.std(near_optimal_output[:, n]):.4f}
+                Sparsity: {np.isclose(near_optimal_output[:, n], 0).sum()} / {near_optimal_output.shape[0]} zeros
+            training:
+                Mean:     {np.mean(Y_train[:, n]):.4f}
+                Std Dev:  {np.std(Y_train[:, n]):.4f}
+                Sparsity: {np.isclose(Y_train[:, n], 0).sum()} / {Y_train.shape[0]} zeros
+            testing:
+                Mean:     {np.mean(Y_test[:, n]):.4f}
+                Std Dev:  {np.std(Y_test[:, n]):.4f}
+                Sparsity: {np.isclose(Y_test[:, n], 0).sum()} / {Y_test.shape[0]} zeros
+        non-optimal: 
+            Mean:     {np.mean(non_optimal_output[:, n]):.4f}
+            Std Dev:  {np.std(non_optimal_output[:, n]):.4f}
+            Sparsity: {np.isclose(non_optimal_output[:, n], 0).sum()} / {non_optimal_output.shape[0]} zeros
+        
+    {pred} - Mean Squared Error (MSE): 
+        Training set: {train_mse[n]:.6f}
+        Testing set:  {test_mse[n]:.6f}
+        non-optimal:  {nonopt_mse[n]:.6f}
+
+    {pred} - Root Mean Squared Error Cost (RMSE):
+        Training set: {train_rmse[n]:.6f}
+        Testing set:  {test_rmse[n]:.6f}
+        non-optimal:  {nonopt_rmse[n]:.6f}
+"""        
+    printstr+=f"""
     R-squared (R²):
         Training set: {train_r2:.6f}
         Testing set:  {test_r2:.6f}
+        non-optimal:  {nonopt_r2:.6f}
+"""
+    print(printstr)
 
-    Mean Squared Error Cost (MSE): 
-        Training set: {train_mse_cost:.6f}
-        Testing set:  {test_mse_cost:.6f}
-        
-    Mean Squared Error Penalties (MSE):
-        Training set: {train_mse_pen:.6f}
-        Testing set:  {test_mse_pen:.6f}
-
-    Root Mean Squared Error Cost (RMSE):
-        Training set: {train_rmse_cost:.6f}
-        Testing set:  {test_rmse_cost:.6f}
-    
-    Root Mean Squared Error Penalties (RMSE):
-        Training set: {train_rmse_pen:.6f}
-        Testing set:  {test_rmse_pen:.6f}
-    
-    Statistics of Cost:
-        Mean:     {np.mean(Y_train[:, 0]):.4f}
-        Std Dev:  {np.std(Y_train[:, 0]):.4f}
-        
-    Statistics of Penalties:
-        Mean:     {np.mean(Y_train[:, 1]):.4f}
-        Std Dev:  {np.std(Y_train[:, 1]):.4f}
-    """)
+    with open(MODEL_FILE_PATH+"-stats.txt", "w") as file:
+        print(printstr, file=file)
