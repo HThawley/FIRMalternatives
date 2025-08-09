@@ -377,7 +377,7 @@ Training & validating on near-optimal data. Testing on all data
    
     def evaluate_and_score(model, n, y_true, X):
         start = perf_counter()
-        y_pred = model.predict(X)
+        y_pred = model.predict(X).flatten() # one value only
         end = perf_counter()
         mse = model.score(y_true[:, n], y_pred, "mean_squared_error")
         rmse = rmse_score(y_true[:, n], y_pred)
