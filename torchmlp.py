@@ -31,7 +31,7 @@ costs = raw_costs.CostFactors()
 
 #%%
 @njit
-def rmse(y_true, y_pred):
+def rmse_score(y_true, y_pred):
     """
     Calculates the Root Mean Squared Error between true and predicted values.
     This function is JIT-compiled with Numba for performance.
@@ -295,12 +295,10 @@ if __name__ == "__main__":
     # 
     #  -> we should train the model on many many many more near-optimal points than under/overbuilt
 
-
     # arbitrarily pick 50% cost slack
     cost_slack = 0.5
     cost_slack += 1
     objective = input_data[:, 0] + input_data[:, 2] # cost + penalties
-    
     
     preds = [
         "cost", 
@@ -310,7 +308,6 @@ if __name__ == "__main__":
     output_data = input_data[:, np.array([0, 2])] 
     # output_data = input_data[:, 0] # cost only
     # output_data = input_data[:, 2] # penalties only
-    
     
     input_data = input_data[:, 16:] # trim excess statistics
     og_shape = input_data.shape
@@ -360,70 +357,11 @@ if __name__ == "__main__":
         'weight_decay':1e-5, # L2 regularization
     }
     
-    if os.path.exists(MODEL_FILE_PATH + "-cost.pt") and "cost" in preds:
-        print("Found existing cost model. Loading it.")
-        cost_model = MLPmodel()
-        cost_model.load_model(MODEL_FILE_PATH + "-cost")
-    elif "cost" in preds: 
-        print("No existing cost model found. Training a new one.")
-        cost_model = MLPmodel()
-        cost_model.train(X_train, np.atleast_2d(Y_train[:, 0]).T, **pytorch_params) # cost
-        cost_model.save_model(MODEL_FILE_PATH+"-cost", overwrite=True)
-            
-    if os.path.exists(MODEL_FILE_PATH + "-pen.pt") and "penalties" in preds:
-        print("Found existing penalties model. Loading it.")
-        pen_model = MLPmodel()
-        pen_model.load_model(MODEL_FILE_PATH + "-cost")
-    elif "penalties" in preds:
-        print("No existing penalty model found. Training a new one.")
-        pen_model = MLPmodel()
-        pen_model.train(X_train, np.atleast_2d(Y_train[:, 1]).T, **pytorch_params) # penalties
-        pen_model.save_model(MODEL_FILE_PATH+"-pen", overwrite=True)
-        
 #%%
         
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")
     
-    models = [cost_model if pred == "cost" else 
-              pen_model if pred == "penalties" else None 
-              for pred in preds]
-   
-    # Evaluate on the training set
-    start = perf_counter()
-    pred_train = [model.predict(X_train) for n, model in enumerate(models)]
-    end = perf_counter()
-    print(f"Time to evaluate {X_train.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
-    print(f"    ({(1_000_000*(end-start)/X_train.shape[0]):.4f} micro_s per solution)")
-    train_r2 = [model.score(Y_train[:, n], pred_train[n], "r2_score") for n, model in enumerate(models)]
-    train_mse = [model.score(Y_train[:, n], pred_train[n], "mean_squared_error") for n, model in enumerate(models)]
-    train_rmse = [rmse(Y_train[:, n], pred_train[n]) for n, model in enumerate(models)]
-    train_spea = [spearmanr(Y_train[:, n], pred_train[n]) for n, model in enumerate(models)]
-
-    # Evaluate on the testing set
-    start = perf_counter()
-    pred_test = [model.predict(X_test) for n, model in enumerate(models)]
-    end = perf_counter()
-    print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
-    print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
-    test_r2 = [model.score(Y_test[:, n], pred_test[n], "r2_score") for n, model in enumerate(models)]
-    test_mse = [model.score(Y_test[:, n], pred_test[n], "mean_squared_error") for n, model in enumerate(models)]
-    test_rmse = [rmse(Y_test[:, n], pred_test[n]) for n, model in enumerate(models)]
-    test_spea = [spearmanr(Y_test[:, n], pred_test[n]) for n, model in enumerate(models)]
-
-    # Evaluate on the non-optimal set
-    start = perf_counter()
-    pred_nonopt = [model.predict(non_optimal_input) for n, model in enumerate(models)]
-    end = perf_counter()
-    print(f"Time to evaluate {X_test.shape[0]} solutions: {(1000*(end-start)):.4f} ms")
-    print(f"    ({(1_000_000*(end-start)/X_test.shape[0]):.4f} micro_s per solution)")
-    nonopt_r2 = [model.score(non_optimal_output[:, n], pred_nonopt[n], "r2_score") for n, model in enumerate(models)]
-    nonopt_mse = [model.score(non_optimal_output[:, n], pred_nonopt[n], "mean_squared_error") for n, model in enumerate(models)]
-    nonopt_rmse = [rmse(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
-    nonopt_spea = [spearmanr(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
-#%%
-
-##TODO: add execution time here
     printstr=f"""
 full input data: {og_shape}
 near-optimal {int(100*(cost_slack-1))} % data: {near_optimal_input.shape}
@@ -436,46 +374,80 @@ Non-optimal set size: {non_optimal_input.shape[0]}
 Training & validating on near-optimal data. Testing on all data
 """
     
-    for n, pred in enumerate(preds): 
+   
+    def evaluate_and_score(model, n, y_true, X):
+        start = perf_counter()
+        y_pred = model.predict(X)
+        end = perf_counter()
+        mse = model.score(y_true[:, n], y_pred, "mean_squared_error")
+        rmse = rmse_score(y_true[:, n], y_pred)
+        spea = spearmanr(y_true[:, n], y_pred)
+        r2 = model.score(y_true[:, n], y_pred, "r2_score")
+        return end-start, mse, rmse, spea, r2
+    
+    for n, pred in enumerate(preds):
+        if os.path.exists(f"{MODEL_FILE_PATH}-{pred}.pt"):
+            print("Found existing cost model. Loading it.")
+            model = MLPmodel()
+            model.load_model(f"{MODEL_FILE_PATH}-{pred}")
+        else: 
+            print(f"No existing {pred} model found. Training a new one.")
+            model = MLPmodel()
+            model.train(X_train, np.atleast_2d(Y_train[:, n]).T, **pytorch_params) 
+            model.save_model(f"{MODEL_FILE_PATH}-{pred}", overwrite=True)
+    
+        train_stats = evaluate_and_score(model, n, Y_train, X_train)
+        test_stats = evaluate_and_score(model, n, Y_test, X_test)
+        nonopt_stats = evaluate_and_score(model, n, non_optimal_output, non_optimal_input)
+    
         printstr += f"""
-    Statistics of {pred}:
-        near-optimal: 
-                Mean:     {np.mean(near_optimal_output[:, n]):.4f}
-                Std Dev:  {np.std(near_optimal_output[:, n]):.4f}
-                Sparsity: {np.isclose(near_optimal_output[:, n], 0).sum()} / {near_optimal_output.shape[0]} zeros
-            training:
-                Mean:     {np.mean(Y_train[:, n]):.4f}
-                Std Dev:  {np.std(Y_train[:, n]):.4f}
-                Sparsity: {np.isclose(Y_train[:, n], 0).sum()} / {Y_train.shape[0]} zeros
-            testing:
-                Mean:     {np.mean(Y_test[:, n]):.4f}
-                Std Dev:  {np.std(Y_test[:, n]):.4f}
-                Sparsity: {np.isclose(Y_test[:, n], 0).sum()} / {Y_test.shape[0]} zeros
-        non-optimal: 
-            Mean:     {np.mean(non_optimal_output[:, n]):.4f}
-            Std Dev:  {np.std(non_optimal_output[:, n]):.4f}
-            Sparsity: {np.isclose(non_optimal_output[:, n], 0).sum()} / {non_optimal_output.shape[0]} zeros
-        
-    {pred} - Mean Squared Error (MSE): 
-        Training set: {train_mse[n]:.6f}  ({100*train_mse[n]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
-        Testing set:  {test_mse[n]:.6f}  ({100*test_mse[n]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
-        non-optimal:  {nonopt_mse[n]:.6f}  ({100*nonopt_mse[n]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
+Evaluation time on {pred}:
+    Training: {1000*train_stats[0]:.2f} ms  | {1_000_000*train_stats[0]/X_train.shape[0]:.2f} micro sec per 1
+    Testing:  {1000*test_stats[0]:.2f} ms  | {1_000_000*test_stats[0]/X_test.shape[0]:.2f} micro sec per 1
+    Training: {1000*nonopt_stats[0]:.2f} ms  | {1_000_000*nonopt_stats[0]/non_optimal_input.shape[0]:.2f} micro sec per 1
+    
+Statistics of {pred}:
+    near-optimal: 
+            Mean:     {np.mean(near_optimal_output[:, n]):.4f}
+            Std Dev:  {np.std(near_optimal_output[:, n]):.4f}
+            Sparsity: {np.isclose(near_optimal_output[:, n], 0).sum()} / {near_optimal_output.shape[0]} zeros
+        training:
+            Mean:     {np.mean(Y_train[:, n]):.4f}
+            Std Dev:  {np.std(Y_train[:, n]):.4f}
+            Sparsity: {np.isclose(Y_train[:, n], 0).sum()} / {Y_train.shape[0]} zeros
+        testing:
+            Mean:     {np.mean(Y_test[:, n]):.4f}
+            Std Dev:  {np.std(Y_test[:, n]):.4f}
+            Sparsity: {np.isclose(Y_test[:, n], 0).sum()} / {Y_test.shape[0]} zeros
+    non-optimal: 
+        Mean:     {np.mean(non_optimal_output[:, n]):.4f}
+        Std Dev:  {np.std(non_optimal_output[:, n]):.4f}
+        Sparsity: {np.isclose(non_optimal_output[:, n], 0).sum()} / {non_optimal_output.shape[0]} zeros
+    
+{pred} - Mean Squared Error (MSE): 
+    Training set: {train_stats[1]:.6f}  ({100*train_stats[1]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
+    Testing set:  {test_stats[1]:.6f}  ({100*test_stats[1]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
+    non-optimal:  {nonopt_stats[1]:.6f}  ({100*nonopt_stats[1]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
 
-    {pred} - Root Mean Squared Error Cost (RMSE):
-        Training set: {train_rmse[n]:.6f}  ({100*train_rmse[n]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
-        Testing set:  {test_rmse[n]:.6f}  ({100*test_rmse[n]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
-        non-optimal:  {nonopt_rmse[n]:.6f}  ({100*nonopt_rmse[n]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
+{pred} - Root Mean Squared Error Cost (RMSE):
+    Training set: {train_stats[2]:.6f}  ({100*train_stats[2]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
+    Testing set:  {test_stats[2]:.6f}  ({100*test_stats[2]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
+    non-optimal:  {nonopt_stats[2]:.6f}  ({100*nonopt_stats[2]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
 
-    {pred} - spearman rank correlation:
-        Training set: {train_spea[n][0]:.6f} (pvalue: {train_spea[n][1]})
-        Testing set:  {test_spea[n][0]:.6f} (pvalue: {test_spea[n][1]})
-        non-optimal:  {nonopt_spea[n][0]:.6f} (pvalue: {nonopt_spea[n][1]})
+{pred} - spearman rank correlation:
+    Training set: {train_stats[3][0]:.6f} (pvalue: {train_stats[3][1]})
+    Testing set:  {test_stats[3][0]:.6f} (pvalue: {test_stats[3][1]})
+    non-optimal:  {nonopt_stats[3][0]:.6f} (pvalue: {nonopt_stats[3][1]})
 
-    {pred} - R-squared (R²):
-        Training set: {train_r2[n]:.6f} 
-        Testing set:  {test_r2[n]:.6f}
-        non-optimal:  {nonopt_r2[n]:.6f}
+{pred} - R-squared (R²):
+    Training set: {train_stats[4]:.6f} 
+    Testing set:  {test_stats[4]:.6f}
+    non-optimal:  {nonopt_stats[4]:.6f}
 """
+        
+
+        
+        
     print(printstr)
 
     with open(MODEL_FILE_PATH+"-stats.txt", "w") as file:
