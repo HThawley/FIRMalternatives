@@ -350,30 +350,35 @@ if __name__ == "__main__":
 
     # --- Model Training or Loading ---
     
-    if False: #os.path.exists(MODEL_FILE_PATH + '.pt'):
-        print("Found existing model. Loading it.")
-        model = MLPmodel()
-        model.load_model(MODEL_FILE_PATH)
-    else:
-        print("No existing model found. Training a new one.")
-        # PyTorch-specific hyperparameters
-        pytorch_params = {
-            'hidden_layer_sizes': (-2, -2),
-            'epochs': 1000,
-            'batch_size': 512,
-            'learning_rate': 0.001,
-            'alpha':0.001,
-            'patience': 75, # For early stopping
-            'weight_decay':1e-5, # L2 regularization
-        }
-        if "cost" in preds:
-            cost_model = MLPmodel()
-            cost_model.train(X_train, np.atleast_2d(Y_train[:, 0]).T, **pytorch_params) # cost
-            cost_model.save_model(MODEL_FILE_PATH+"-cost", overwrite=True)
-        if "penalties" in preds:
-            pen_model = MLPmodel()
-            pen_model.train(X_train, np.atleast_2d(Y_train[:, 1]).T, **pytorch_params) # penalties
-            pen_model.save_model(MODEL_FILE_PATH+"-pen", overwrite=True)
+    pytorch_params = {
+        'hidden_layer_sizes': (-2, -2),
+        'epochs': 1000,
+        'batch_size': 512,
+        'learning_rate': 0.001,
+        'alpha':0.001,
+        'patience': 75, # For early stopping
+        'weight_decay':1e-5, # L2 regularization
+    }
+    
+    if os.path.exists(MODEL_FILE_PATH + "-cost.pt") and "cost" in preds:
+        print("Found existing cost model. Loading it.")
+        cost_model = MLPmodel()
+        cost_model.load_model(MODEL_FILE_PATH + "-cost")
+    elif "cost" in preds: 
+        print("No existing cost model found. Training a new one.")
+        cost_model = MLPmodel()
+        cost_model.train(X_train, np.atleast_2d(Y_train[:, 0]).T, **pytorch_params) # cost
+        cost_model.save_model(MODEL_FILE_PATH+"-cost", overwrite=True)
+            
+    if os.path.exists(MODEL_FILE_PATH + "-pen.pt") and "penalties" in preds:
+        print("Found existing penalties model. Loading it.")
+        pen_model = MLPmodel()
+        pen_model.load_model(MODEL_FILE_PATH + "-cost")
+    elif "penalties" in preds:
+        print("No existing penalty model found. Training a new one.")
+        pen_model = MLPmodel()
+        pen_model.train(X_train, np.atleast_2d(Y_train[:, 1]).T, **pytorch_params) # penalties
+        pen_model.save_model(MODEL_FILE_PATH+"-pen", overwrite=True)
         
 #%%
         
@@ -417,6 +422,8 @@ if __name__ == "__main__":
     nonopt_rmse = [rmse(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
     nonopt_spea = [spearmanr(non_optimal_output[:, n], pred_nonopt[n]) for n, model in enumerate(models)]
 #%%
+
+##TODO: add execution time here
     printstr=f"""
 full input data: {og_shape}
 near-optimal {int(100*(cost_slack-1))} % data: {near_optimal_input.shape}
