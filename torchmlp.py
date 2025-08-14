@@ -257,7 +257,7 @@ class MLPmodel:
 #%%
 
 if __name__ == "__main__":
-    MODEL_FILE_PATH = "MLP_models/mlp-nopt"
+    MODEL_FILE_PATH = "MLP_models/mlp-nopt2"
 
     CSV_FILE_PATH = "Results/firmpoints.csv"
 
@@ -295,10 +295,15 @@ if __name__ == "__main__":
     # 
     #  -> we should train the model on many many many more near-optimal points than under/overbuilt
 
-    # arbitrarily pick 50% cost slack
-    cost_slack = 0.5
-    cost_slack += 1
+    # arbitrarily pick cost slack
+    upper_cost_slack = 0.30
+    upper_cost_slack += 1
+    lower_cost_slack = 0.15
+    lower_cost_slack += 1
     objective = input_data[:, 0] + input_data[:, 2] # cost + penalties
+    optimum = objective.min()
+    upper = optimum * upper_cost_slack
+    lower = optimum / lower_cost_slack
     
     preds = [
         "cost", 
@@ -313,8 +318,8 @@ if __name__ == "__main__":
     og_shape = input_data.shape
     
     sort_cost = np.argsort(objective)
-    near_optimal_idx = np.where(
-        objective[sort_cost] < objective[sort_cost[0]] * cost_slack)[0][-1] # last index where near-optimal
+    near_optimal_idx = np.where(objective[sort_cost] < upper and 
+                                objective[sort_cost] > lower)[0] # should be cost 
     
     print("full input data:", input_data.shape)
     near_optimal_input = input_data[sort_cost[:near_optimal_idx], :]
@@ -323,9 +328,6 @@ if __name__ == "__main__":
     near_optimal_output = output_data[sort_cost[:near_optimal_idx], :]
     non_optimal_output = output_data[sort_cost[near_optimal_idx:], :]
 
-    print(f"near-optimal {int(100*(cost_slack-1))} % data:", near_optimal_input.shape)
-    print(f"non-optimal {int(100*(cost_slack-1))} % data:", non_optimal_input.shape)
-    
     print("Training & validating on near-optimal data. Testing on all data")
     rng = np.random.default_rng(seed=1)
     shuffleidx = np.arange(len(near_optimal_input))
@@ -364,8 +366,8 @@ if __name__ == "__main__":
     
     printstr=f"""
 full input data: {og_shape}
-near-optimal {int(100*(cost_slack-1))} % data: {near_optimal_input.shape}
-non-optimal {int(100*(cost_slack-1))} % data: {non_optimal_input.shape}
+near-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {near_optimal_input.shape}
+non-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {non_optimal_input.shape}
 
 Train set size: {X_train.shape[0]}
 Test set size: {X_test.shape[0]}
@@ -404,7 +406,7 @@ Training & validating on near-optimal data. Testing on all data
 Evaluation time on {pred}:
     Training: {1000*train_stats[0]:.2f} ms  | {1_000_000*train_stats[0]/X_train.shape[0]:.2f} micro sec per 1
     Testing:  {1000*test_stats[0]:.2f} ms  | {1_000_000*test_stats[0]/X_test.shape[0]:.2f} micro sec per 1
-    Training: {1000*nonopt_stats[0]:.2f} ms  | {1_000_000*nonopt_stats[0]/non_optimal_input.shape[0]:.2f} micro sec per 1
+    Non-opt:  {1000*nonopt_stats[0]:.2f} ms  | {1_000_000*nonopt_stats[0]/non_optimal_input.shape[0]:.2f} micro sec per 1
     
 Statistics of {pred}:
     near-optimal: 
