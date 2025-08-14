@@ -3,6 +3,8 @@
 Created on Tue Jul 29 15:41:00 2025
 
 """
+import sys 
+sys.argv = [""]
 
 import numpy as np
 import pandas as pd
@@ -125,7 +127,7 @@ class MLPmodel:
 
         # Create validation set
         dataset = TensorDataset(X_tensor, y_tensor)
-        val_size = int(len(dataset) * validation_split)
+        val_size = max(1, int(len(dataset) * validation_split))
         train_size = len(dataset) - val_size
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
         
@@ -300,8 +302,9 @@ if __name__ == "__main__":
     upper_cost_slack += 1
     lower_cost_slack = 0.15
     lower_cost_slack += 1
-    objective = input_data[:, 0] + input_data[:, 2] # cost + penalties
-    optimum = objective.min()
+    true_cost = input_data[:, 0] + input_data[:, 2] # cost + penalties
+    true_penalties = input_data[:, 0] + input_data[:, 2] # cost + penalties
+    optimum = (true_cost+true_penalties).min()
     upper = optimum * upper_cost_slack
     lower = optimum / lower_cost_slack
     
@@ -317,16 +320,15 @@ if __name__ == "__main__":
     input_data = input_data[:, 16:] # trim excess statistics
     og_shape = input_data.shape
     
-    sort_cost = np.argsort(objective)
-    near_optimal_idx = np.where(objective[sort_cost] < upper and 
-                                objective[sort_cost] > lower)[0] # should be cost 
+    near_optimal_idx = (true_cost < upper) & (true_cost > lower) 
     
     print("full input data:", input_data.shape)
-    near_optimal_input = input_data[sort_cost[:near_optimal_idx], :]
-    non_optimal_input = input_data[sort_cost[near_optimal_idx:], :]
+    near_optimal_input = input_data[near_optimal_idx, :]
+    non_optimal_input = input_data[~near_optimal_idx, :]
     del input_data
-    near_optimal_output = output_data[sort_cost[:near_optimal_idx], :]
-    non_optimal_output = output_data[sort_cost[near_optimal_idx:], :]
+    near_optimal_output = output_data[near_optimal_idx, :]
+    non_optimal_output = output_data[~near_optimal_idx, :]
+    del near_optimal_idx
 
     print("Training & validating on near-optimal data. Testing on all data")
     rng = np.random.default_rng(seed=1)
@@ -454,3 +456,4 @@ Statistics of {pred}:
 
     with open(MODEL_FILE_PATH+"-stats.txt", "w") as file:
         print(printstr, file=file)
+# %%
