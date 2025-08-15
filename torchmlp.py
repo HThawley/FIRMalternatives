@@ -20,8 +20,18 @@ from pathlib import Path
 from numba import njit
 from time import perf_counter
 
-#%%
-from Input import (scenario, DClengths, undersea_mask, network_mask, Raw_Costs, lb, ub)
+#%% Immports
+from Input import (
+    scenario, 
+    energy,
+    DClengths, 
+    undersea_mask, 
+    network_mask, 
+    Raw_Costs, 
+    lb, ub,
+    pzones, wzones, nodes, 
+    pidx, widx, gidx, sidx
+    )
 from Costs import Raw_Costs 
 from Optimisation import Optimise, Objective
 from ParameterSweep import calculate_costs, deduplicate_history
@@ -31,7 +41,26 @@ np.set_printoptions(suppress=True)
 raw_costs = Raw_Costs(scenario, DClengths, undersea_mask, network_mask)
 costs = raw_costs.CostFactors()
 
-#%%
+@njit
+def getFixedFactors(costFactors):
+    fixedFactors = np.zeros(len(lb), np.float64)
+
+    for i in range(pidx):
+        fixedFactors[i] += costFactors.pv[0] + costFactors.pv[1] # capex + fom
+    for i in range(pidx, widx):
+        fixedFactors[i] += costFactors.onsw[0] + costFactors.onsw[1] # capex + fom
+    for i in range(widx, gidx):
+        fixedFactors[i] += costFactors.gas[0] + costFactors.gas[1] # capex + fom
+    for i in range(gidx, sidx):
+        fixedFactors[i] += costFactors.phes[0] + costFactors.phes[2]
+    for i in range(sidx, sidx+nodes):
+        fixedFactors[i] += costFactors.phes[1]
+    for i in range(gidx):
+        fixedFactors[i] += costFactors.ac[0] + costFactors.ac[1] # capex + fom
+
+    return fixedFactors
+
+#%% Model Declaration
 @njit
 def rmse_score(y_true, y_pred):
     """
@@ -100,7 +129,8 @@ class MLPmodel:
         scaler = self._create_scaler(X)
         return scaler.transform(X)
 
-    def train(self, X, y, validation_split=0.1, verbose=True, **train_params):
+    def train(self, X, y, validation_split=0.1, verbose=True, 
+              heuristic_weights=None, heuristic_bias=None, **train_params):
         self.num_inputs = X.shape[1]
         self.num_outputs = y.shape[1]
         
@@ -136,6 +166,35 @@ class MLPmodel:
 
         # --- Model Initialization ---
         self.model = _Net(self.num_inputs, self.num_outputs, self.hidden_layer_sizes, self.alpha).to(self.device)
+        
+        with torch.no_grad():
+            first_layer = self.model.network[0]
+            if heuristic_weights is not None:
+                heuristic_weights = np.atleast_2d(heuristic_weights)
+                num_neurons = heuristic_weights.shape[0]
+
+                if verbose: print(f"Manually setting first {num_neurons} neurons prior to training")
+
+                if num_neurons > first_layer.out_features:
+                    raise ValueError(f"Cannot set {num_neurons} neurons, first layer only has {first_layer.out_features} neurons.")
+                if heuristic_weights.shape[1] != self.num_inputs:
+                    raise ValueError(f"heuristic_weights shape ({heuristic_weights.shape[1]}) does not match number of inputs ({self.num_inputs})")
+                
+                scaled_weights = heuristic_weights * self.scaler_scale
+                first_layer.weight.data[:num_neurons, :] = torch.from_numpy(scaled_weights).float().to(self.device)
+
+                if heuristic_bias is None:
+                    unscaled_bias = np.zeros(num_neurons)
+                else: 
+                    unscaled_bias = np.atleast_1d(heuristic_bias)
+                    assert heuristic_bias.shape[0] == num_neurons, "Heuristic weights and biases must have same length"
+
+                scaled_bias = unscaled_bias + (heuristic_weights @ self.scaler_mean)
+                first_layer.bias.data[:num_neurons] = torch.from_numpy(scaled_bias).float().to(self.device)
+
+            else:
+                assert heuristic_bias is None, "Cannot set heuristic biases without weights"
+
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
@@ -256,7 +315,7 @@ class MLPmodel:
         
         self._is_trained = True
         if verbose: print(f"Model loaded successfully. Time taken: {dt.now() - start}")
-#%%
+#%% Execution block
 
 if __name__ == "__main__":
     MODEL_FILE_PATH = "MLP_models/mlp-nopt2"
@@ -302,8 +361,8 @@ if __name__ == "__main__":
     upper_cost_slack += 1
     lower_cost_slack = 0.15
     lower_cost_slack += 1
-    true_cost = input_data[:, 0] + input_data[:, 2] # cost + penalties
-    true_penalties = input_data[:, 0] + input_data[:, 2] # cost + penalties
+    true_cost = input_data[:, 0] # cost + penalties
+    true_penalties = input_data[:, 2] # cost + penalties
     optimum = (true_cost+true_penalties).min()
     upper = optimum * upper_cost_slack
     lower = optimum / lower_cost_slack
@@ -325,6 +384,7 @@ if __name__ == "__main__":
     print("full input data:", input_data.shape)
     near_optimal_input = input_data[near_optimal_idx, :]
     non_optimal_input = input_data[~near_optimal_idx, :]
+
     del input_data
     near_optimal_output = output_data[near_optimal_idx, :]
     non_optimal_output = output_data[~near_optimal_idx, :]
@@ -361,7 +421,7 @@ if __name__ == "__main__":
         'weight_decay':1e-5, # L2 regularization
     }
     
-#%%
+    #%% Evaluation block
         
     # --- Evaluation ---
     print("\n--- Model Evaluation ---")
@@ -390,14 +450,21 @@ Training & validating on near-optimal data. Testing on all data
         return end-start, mse, rmse, spea, r2
     
     for n, pred in enumerate(preds):
-        if os.path.exists(f"{MODEL_FILE_PATH}-{pred}.pt"):
+        if pred == "cost":
+            fixedFactors = getFixedFactors(costs) / (energy * pow(10, 9))
+        else: 
+            fixedFactors = None
+
+        if False: # os.path.exists(f"{MODEL_FILE_PATH}-{pred}.pt"):
             print("Found existing cost model. Loading it.")
             model = MLPmodel()
             model.load_model(f"{MODEL_FILE_PATH}-{pred}")
         else: 
             print(f"No existing {pred} model found. Training a new one.")
             model = MLPmodel()
-            model.train(X_train, np.atleast_2d(Y_train[:, n]).T, **pytorch_params) 
+            model.train(X_train, np.atleast_2d(Y_train[:, n]).T, 
+                        heuristic_weights = fixedFactors, 
+                        **pytorch_params) 
             model.save_model(f"{MODEL_FILE_PATH}-{pred}", overwrite=True)
     
         train_stats = evaluate_and_score(model, n, Y_train, X_train)
@@ -449,11 +516,8 @@ Statistics of {pred}:
     non-optimal:  {nonopt_stats[4]:.6f}
 """
         
-
-        
-        
     print(printstr)
 
     with open(MODEL_FILE_PATH+"-stats.txt", "w") as file:
         print(printstr, file=file)
-# %%
+
