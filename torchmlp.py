@@ -432,8 +432,6 @@ if __name__ == "__main__":
     pen_train_idx = train_test_pen_idx[cutoff:]
     pen_test_idx = train_test_pen_idx[:cutoff]
     
-    print(f"Train set size: {cost_train_idx.shape[0]}, Test set size: {cost_test_idx.shape[0]}")
-
     # --- Model Training or Loading ---
     
     pytorch_params = {
@@ -453,8 +451,8 @@ if __name__ == "__main__":
     
     printstr=f"""
 full input data: {og_shape}
-near-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {near_optimal_input.shape}
-non-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {non_optimal_input.shape}
+near-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {near_optimal_idx.shape}
+non-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {non_optimal_idx.shape}
 
 Cost: 
     Training & Testing on all near-optimal data and some non-optimal data (ratio: {near_opt_cost_frac:.2f} / {non_opt_cost_frac:.2f})
