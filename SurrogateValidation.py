@@ -13,8 +13,7 @@ import matplotlib.colors as plc
 from scipy.stats import spearmanr, binned_statistic_2d
 import seaborn as sns
 
-from torchmlp import MLPmodel as tMLPmodel
-from mlp import MLPmodel
+from torchmlp import MLPmodel 
 from Input import *
 
 @njit(parallel=True)
@@ -30,7 +29,7 @@ def Obj(x, costs):
     S._evaluate(costs)
     return S.LCOE + S.Penalties
 
-def plot_1D_slice(p1, p2, true_func, surrogate_func, n_steps=100, t_args=()):
+def plot_1D_slice(p1, p2, true_func, surrogate_func, n_steps=100, t_args=(), ax = None):
     t = np.linspace(0, 1, n_steps)
     line_points = np.array([p1 * (1 - step) + p2 * step for step in t])
 
@@ -40,11 +39,16 @@ def plot_1D_slice(p1, p2, true_func, surrogate_func, n_steps=100, t_args=()):
         surrogate_values = [sf(line_points) for sf in surrogate_func]
         n_funcs = len(surrogate_func)
         multiple_surrogates=True
+    else: 
+        surrogate_values = [surrogate_func(line_points)]
 
     # Expensive operation: calling the true function multiple times
     true_values = true_func(line_points, *t_args)
 
-    fig, ax = plt.subplots(figsize=(12, 7))
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 7))
+    else: 
+        fig = plt.gcf()
     fig.suptitle('1D Landscape Slice Comparison', fontsize=16)
 
     # Plot both lines for a direct comparison
@@ -52,13 +56,12 @@ def plot_1D_slice(p1, p2, true_func, surrogate_func, n_steps=100, t_args=()):
     for n in range(n_funcs):
         ax.plot(t, surrogate_values[n], label=f'Surrogate {n}', color=f'C{n+1}', linestyle='--', zorder=3+n)
 
-    ax.set_title('Surrogate vs. True Function Landscape')
-    ax.set_xlabel('Interpolation (0 -> p1, 1 -> p2)')
-    ax.set_ylabel('Objective Value')
+    # ax.set_title('Surrogate vs. True Function Landscape')
+    # ax.set_xlabel('Interpolation (0 -> p1, 1 -> p2)')
+    # ax.set_ylabel('Objective Value')
     ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend()
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.show()
+    # ax.legend()
+    # plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
 def plot_1D_slice_from_points(p1, p2, all_points, y_true, surrogate_func, threshold_dist=1):
     line_vec = p2 - p1
@@ -93,7 +96,6 @@ def plot_1D_slice_from_points(p1, p2, all_points, y_true, surrogate_func, thresh
     ax.grid(True, linestyle='--', alpha=0.6)
     ax.legend()
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.show()
 
 def plot_2D_scatter_slice(X, y_true, y_pred, dim1, dim2):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7), sharey=True, sharex=True)
@@ -211,46 +213,37 @@ if __name__ == "__main__":
     
     data = pd.read_csv(
         "Results/firmpoints.csv", 
-        skiprows=2_000_000,
-        nrows=4_000_000,
+        # skiprows=2_000_000,
+        # nrows=4_000_000,
         header=None,
-        ).to_numpy()[0::2]
+        ).to_numpy()#[0::2]
 
     y_true = data[:, 0] + data[:, 2] # lcoe + penalties
     X = data[:, 16:]
     
     MODEL_FILE_PATH = "MLP_models/mlp-pt-s1-s0.pt"
-    tmlp = tMLPmodel(MODEL_FILE_PATH)
-    
-    MODEL_FILE_PATH = "MLP_models/mlp-full-s1-s0.json"
     mlp = MLPmodel(MODEL_FILE_PATH)
-
+    
     y_pred = mlp.predict(X).sum(axis=1)
-    ty_pred = tmlp.predict(X).sum(axis=1)
     
     # rank_correlation_plot(y_true, y_pred, axmax=300)
     stat, pvalue = spearman_rank_coefficient(y_true, y_pred)
     print(f"""rank correlation {stat:.4f} / 1.0. pvalue: {pvalue}.""")
-    stat, pvalue = spearman_rank_coefficient(y_true, ty_pred)
-    print(f"""rank correlation {stat:.4f} / 1.0. pvalue: {pvalue}.""")
     
     rank_correlation_plot(y_true[0::1], y_pred[0::1], 400)
-    rank_correlation_plot(y_true[0::1], ty_pred[0::1], 400)
     
-    def surrogate_func_wrapper1(points):
-        return tmlp.predict(points).sum(axis=1)
-    
-    def surrogate_func_wrapper2(points):
+    def surrogate_func_wrapper(points):
         return mlp.predict(points).sum(axis=1)
     
+    fig, axs = plt.subplots(3, 3)
     rng = np.random.default_rng(1)
-    for _ in range(10):
+    for ax in axs.flatten():
         p1, p2 = X[rng.integers(0, len(data))], X[rng.integers(0, len(data))]
         # plot_1D_slice_from_points(p1, p2, X, y_true, surrogate_func_wrapper, 4)
-        plot_1D_slice(p1, p2, ObjWrapper, (surrogate_func_wrapper1, surrogate_func_wrapper2), 50, t_args=(costs,))
+        plot_1D_slice(p1, p2, ObjWrapper, surrogate_func_wrapper, 50, t_args=(costs,), ax=ax)
     
     plt.show()
-    
+
     raise KeyboardInterrupt
     for dim1 in range(1):
         for dim2 in range(53):
