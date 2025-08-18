@@ -183,7 +183,7 @@ class MLPmodel:
                 scaled_weights = heuristic_weights * self.scaler_scale
                 first_layer.weight.data[:num_neurons, :] = torch.from_numpy(scaled_weights).float().to(self.device)
                 first_layer.weight.requires_grad = False
-                
+
                 if heuristic_bias is None:
                     unscaled_bias = np.zeros(num_neurons)
                 else: 
@@ -192,7 +192,7 @@ class MLPmodel:
 
                 scaled_bias = unscaled_bias + (heuristic_weights @ self.scaler_mean)
                 first_layer.bias.data[:num_neurons] = torch.from_numpy(scaled_bias).float().to(self.device)
-
+                first_layer.bias.requires_grad = False
             else:
                 assert heuristic_bias is None, "Cannot set heuristic biases without weights"
 
