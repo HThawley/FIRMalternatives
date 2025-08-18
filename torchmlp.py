@@ -161,7 +161,7 @@ class MLPmodel:
         train_size = len(dataset) - val_size
         train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
         
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
         # --- Model Initialization ---
@@ -182,7 +182,8 @@ class MLPmodel:
                 
                 scaled_weights = heuristic_weights * self.scaler_scale
                 first_layer.weight.data[:num_neurons, :] = torch.from_numpy(scaled_weights).float().to(self.device)
-
+                first_layer.weight.requires_grad = False
+                
                 if heuristic_bias is None:
                     unscaled_bias = np.zeros(num_neurons)
                 else: 
@@ -301,7 +302,7 @@ class MLPmodel:
         start = dt.now()
         if verbose: print(f"Loading model from {filepath_with_ext}...")
 
-        state = torch.load(filepath_with_ext, map_location=self.device, weights_only=False)
+        state = torch.load(filepath_with_ext, map_location=self.device)
         
         self.num_inputs = state['num_inputs']
         self.num_outputs = state['num_outputs']
@@ -322,11 +323,8 @@ if __name__ == "__main__":
 
     CSV_FILE_PATH = "Results/firmpoints.csv"
 
-    input_data = pd.read_csv(
-        CSV_FILE_PATH, 
-        header=None,
-        )
-    
+    input_data = pd.read_csv(CSV_FILE_PATH, header=None,)
+
     input_data= input_data.to_numpy()
     rng = np.random.default_rng(1) # seeded
     rng.shuffle(input_data) # in-place
@@ -368,16 +366,13 @@ if __name__ == "__main__":
     optimum = (true_cost+true_penalties).min()
     upper = optimum * upper_cost_slack
     lower = optimum / lower_cost_slack
-    
-    preds = [
-        "cost", 
-        "penalties", 
-        ]
+
+    preds = ["cost", "penalties", ]
     # Update below based on preds
     output_data = input_data[:, np.array([0, 2])] 
     # output_data = input_data[:, 0] # cost only
     # output_data = input_data[:, 2] # penalties only
-    
+
     input_data = input_data[:, 16:] # trim excess statistics
     og_shape = input_data.shape
 
@@ -513,7 +508,7 @@ Penalites:
     
         train_stats = evaluate_and_score(model, output_data[train_idx, n], input_data[train_idx])
         test_stats = evaluate_and_score(model, output_data[test_idx, n], input_data[test_idx])
-        val_stats = evaluate_and_score(model, n, output_data[val_idx, n], input_data[val_idx])
+        val_stats = evaluate_and_score(model, output_data[val_idx, n], input_data[val_idx])
     
         printstr += f"""
 Evaluation time on {pred}:
