@@ -494,7 +494,7 @@ Penalites:
             test_idx = pen_test_idx
             val_idx = validate_pen_idx
 
-        if False: # os.path.exists(f"{MODEL_FILE_PATH}-{pred}.pt"):
+        if os.path.exists(f"{MODEL_FILE_PATH}-{pred}.pt"):
             print("Found existing cost model. Loading it.")
             model = MLPmodel()
             model.load_model(f"{MODEL_FILE_PATH}-{pred}")
