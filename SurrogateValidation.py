@@ -4,6 +4,10 @@ Created on Mon Jul 28 14:24:00 2025
 
 @author: u6942852
 """
+import sys
+if "win" not in sys.platform:
+    import matplotlib 
+    matplotlib.use("tkagg")
 
 import numpy as np
 import pandas as pd
