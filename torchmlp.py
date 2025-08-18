@@ -328,6 +328,8 @@ if __name__ == "__main__":
         )
     
     input_data= input_data.to_numpy()
+    rng = np.random.default_rng(1) # seeded
+    rng.shuffle(input_data) # in-place
 
     ### Justification of training data trimming.
     # Divide FIRM solutions into 3 regions: 
@@ -378,36 +380,59 @@ if __name__ == "__main__":
     
     input_data = input_data[:, 16:] # trim excess statistics
     og_shape = input_data.shape
+
+    # Already shuffled so we can just take a slice    
+    near_optimal_mask = (true_cost < upper) & (true_cost > lower) 
+    near_optimal_idx = np.where(near_optimal_mask)[0]
+    non_optimal_idx = np.where(~near_optimal_mask)[0]
+
+    penalties_mask = true_penalties > 0.001
+    posi_penalties = np.where(penalties_mask)[0]
+    zero_penalties = np.where(~penalties_mask)[0]
+
+    near_opt_cost_frac = 0.9
+    non_opt_cost_frac = 0.1
+
+    train_test_cost_idx = np.concatenate((
+        near_optimal_idx, 
+        non_optimal_idx[:int(non_opt_cost_frac*len(near_optimal_idx))]
+    ))
+    validate_cost_idx = non_optimal_idx[int(non_opt_cost_frac*len(near_optimal_idx)):]
     
-    near_optimal_idx = (true_cost < upper) & (true_cost > lower) 
-    
+    near_opt_pen_frac = 0.5
+    posi_pen_frac = 0.25
+    zero_pen_frac = 0.25
+
+    near_opt_component = near_optimal_idx[:int(near_opt_pen_frac*len(train_test_cost_idx))]
+    posi_penalties = np.setdiff1d(posi_penalties, near_opt_component)
+    zero_penalties = np.setdiff1d(zero_penalties, near_opt_component)
+
+    posi_nidx = min(len(posi_penalties), int(posi_pen_frac*len(train_test_cost_idx)))
+    zero_nidx = min(len(zero_penalties), int(zero_pen_frac*len(train_test_cost_idx)))
+
+    train_test_pen_idx = np.concatenate((
+        near_opt_component,
+        posi_penalties[:posi_nidx],
+        zero_penalties[:zero_nidx]
+    ))
+    validate_pen_idx = np.concatenate((
+        posi_penalties[posi_nidx:],
+        zero_penalties[zero_nidx:]
+    ))
+
     print("full input data:", input_data.shape)
-    near_optimal_input = input_data[near_optimal_idx, :]
-    non_optimal_input = input_data[~near_optimal_idx, :]
+    
+    rng.shuffle(train_test_cost_idx)
+    rng.shuffle(train_test_pen_idx)
 
-    del input_data
-    near_optimal_output = output_data[near_optimal_idx, :]
-    non_optimal_output = output_data[~near_optimal_idx, :]
-    del near_optimal_idx
-
-    print("Training & validating on near-optimal data. Testing on all data")
-    rng = np.random.default_rng(seed=1)
-    shuffleidx = np.arange(len(near_optimal_input))
-    rng.shuffle(shuffleidx)
+    cutoff = int(0.90*len(train_test_cost_idx)) # both same length (+/- 1)
     
-    near_optimal_input = near_optimal_input[shuffleidx]
-    near_optimal_output = near_optimal_output[shuffleidx]
-    del shuffleidx
+    cost_train_idx = train_test_cost_idx[cutoff:]
+    cost_test_idx = train_test_cost_idx[:cutoff]
+    pen_train_idx = train_test_pen_idx[cutoff:]
+    pen_test_idx = train_test_pen_idx[:cutoff]
     
-    cutoff = int(0.90*len(near_optimal_input))
-    
-    Y_test = near_optimal_output[cutoff:, :]
-    X_test = near_optimal_input[cutoff:, :]
-    
-    Y_train = near_optimal_output[:cutoff, :]
-    X_train = near_optimal_input[:cutoff, :]
-    
-    print(f"Train set size: {X_train.shape[0]}, Test set size: {X_test.shape[0]}")
+    print(f"Train set size: {cost_train_idx.shape[0]}, Test set size: {cost_test_idx.shape[0]}")
 
     # --- Model Training or Loading ---
     
@@ -431,29 +456,50 @@ full input data: {og_shape}
 near-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {near_optimal_input.shape}
 non-optimal +{int(100*(upper_cost_slack-1)):.0f}%/-{int(100*(lower_cost_slack)):.0f}% data: {non_optimal_input.shape}
 
-Train set size: {X_train.shape[0]}
-Test set size: {X_test.shape[0]}
-Non-optimal set size: {non_optimal_input.shape[0]}
+Cost: 
+    Training & Testing on all near-optimal data and some non-optimal data (ratio: {near_opt_cost_frac:.2f} / {non_opt_cost_frac:.2f})
+    Validating on the rest of the non-optimal data
 
-Training & validating on near-optimal data. Testing on all data
+    Train set size: {cost_train_idx.shape[0]}
+    Test set size: {cost_test_idx.shape[0]}
+    Validation set size: {validate_cost_idx.shape[0]}
+
+Penalites:
+    Training & Testing dataset 
+        * {100*near_opt_pen_frac:.0f}% near-optimal points
+        * {100*posi_pen_frac:.0f}% non-zeros penalties (which may be near or non optimal)
+        * {100*zero_pen_frac:.0f}% zero penalties (which may be near or non optimal)
+    Validating on the rest
+
+    Train set size: {pen_train_idx.shape[0]}
+    Test set size: {pen_test_idx.shape[0]}
+    Validation set size: {validate_pen_idx.shape[0]}
+
 """
     
    
-    def evaluate_and_score(model, n, y_true, X):
+    def evaluate_and_score(model, y_true, X):
         start = perf_counter()
         y_pred = model.predict(X).flatten() # one value only
         end = perf_counter()
-        mse = model.score(y_true[:, n], y_pred, "mean_squared_error")
-        rmse = rmse_score(y_true[:, n], y_pred)
-        spea = spearmanr(y_true[:, n], y_pred)
-        r2 = model.score(y_true[:, n], y_pred, "r2_score")
+        mse = model.score(y_true, y_pred, "mean_squared_error")
+        rmse = rmse_score(y_true, y_pred)
+        spea = spearmanr(y_true, y_pred)
+        r2 = model.score(y_true, y_pred, "r2_score")
         return end-start, mse, rmse, spea, r2
     
     for n, pred in enumerate(preds):
         if pred == "cost":
             fixedFactors = getFixedFactors(costs) / (energy * pow(10, 9))
+            train_idx = cost_train_idx
+            test_idx = cost_test_idx
+            val_idx = validate_cost_idx
+
         else: 
             fixedFactors = None
+            train_idx = pen_train_idx
+            test_idx = pen_test_idx
+            val_idx = validate_pen_idx
 
         if False: # os.path.exists(f"{MODEL_FILE_PATH}-{pred}.pt"):
             print("Found existing cost model. Loading it.")
@@ -462,58 +508,54 @@ Training & validating on near-optimal data. Testing on all data
         else: 
             print(f"No existing {pred} model found. Training a new one.")
             model = MLPmodel()
-            model.train(X_train, np.atleast_2d(Y_train[:, n]).T, 
+            model.train(input_data[train_idx], np.atleast_2d(output_data[train_idx, n]).T, 
                         heuristic_weights = fixedFactors, 
                         **pytorch_params) 
             model.save_model(f"{MODEL_FILE_PATH}-{pred}", overwrite=True)
     
-        train_stats = evaluate_and_score(model, n, Y_train, X_train)
-        test_stats = evaluate_and_score(model, n, Y_test, X_test)
-        nonopt_stats = evaluate_and_score(model, n, non_optimal_output, non_optimal_input)
+        train_stats = evaluate_and_score(model, output_data[train_idx, n], input_data[train_idx])
+        test_stats = evaluate_and_score(model, output_data[test_idx, n], input_data[test_idx])
+        val_stats = evaluate_and_score(model, n, output_data[val_idx, n], input_data[val_idx])
     
         printstr += f"""
 Evaluation time on {pred}:
-    Training: {1000*train_stats[0]:.2f} ms  | {1_000_000*train_stats[0]/X_train.shape[0]:.2f} micro sec per 1
-    Testing:  {1000*test_stats[0]:.2f} ms  | {1_000_000*test_stats[0]/X_test.shape[0]:.2f} micro sec per 1
-    Non-opt:  {1000*nonopt_stats[0]:.2f} ms  | {1_000_000*nonopt_stats[0]/non_optimal_input.shape[0]:.2f} micro sec per 1
+    Training:   {1000*train_stats[0]:.2f} ms  | {1_000_000*train_stats[0]/train_idx.shape[0]:.2f} micro sec per 1
+    Testing:    {1000*test_stats[0]:.2f} ms  | {1_000_000*test_stats[0]/test_idx.shape[0]:.2f} micro sec per 1
+    Validation: {1000*val_stats[0]:.2f} ms  | {1_000_000*val_stats[0]/val_idx.shape[0]:.2f} micro sec per 1
     
 Statistics of {pred}:
-    near-optimal: 
-            Mean:     {np.mean(near_optimal_output[:, n]):.4f}
-            Std Dev:  {np.std(near_optimal_output[:, n]):.4f}
-            Sparsity: {np.isclose(near_optimal_output[:, n], 0).sum()} / {near_optimal_output.shape[0]} zeros
-        training:
-            Mean:     {np.mean(Y_train[:, n]):.4f}
-            Std Dev:  {np.std(Y_train[:, n]):.4f}
-            Sparsity: {np.isclose(Y_train[:, n], 0).sum()} / {Y_train.shape[0]} zeros
-        testing:
-            Mean:     {np.mean(Y_test[:, n]):.4f}
-            Std Dev:  {np.std(Y_test[:, n]):.4f}
-            Sparsity: {np.isclose(Y_test[:, n], 0).sum()} / {Y_test.shape[0]} zeros
-    non-optimal: 
-        Mean:     {np.mean(non_optimal_output[:, n]):.4f}
-        Std Dev:  {np.std(non_optimal_output[:, n]):.4f}
-        Sparsity: {np.isclose(non_optimal_output[:, n], 0).sum()} / {non_optimal_output.shape[0]} zeros
+    Training:   
+        Mean:     {np.mean(output_data[train_idx, n]):.4f}
+        Std Dev:  {np.std(output_data[train_idx, n]):.4f}
+        Sparsity: {np.isclose(output_data[train_idx, n], 0).sum()} / {train_idx.shape[0]} zeros
+    Testing:
+        Mean:     {np.mean(output_data[test_idx, n]):.4f}
+        Std Dev:  {np.std(output_data[test_idx, n]):.4f}
+        Sparsity: {np.isclose(output_data[test_idx, n], 0).sum()} / {test_idx.shape[0]} zeros
+    Validation: 
+        Mean:     {np.mean(output_data[val_idx, n]):.4f}
+        Std Dev:  {np.std(output_data[val_idx, n]):.4f}
+        Sparsity: {np.isclose(output_data[val_idx, n], 0).sum()} / {val_idx.shape[0]} zeros
     
 {pred} - Mean Squared Error (MSE): 
-    Training set: {train_stats[1]:.6f}  ({100*train_stats[1]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
-    Testing set:  {test_stats[1]:.6f}  ({100*test_stats[1]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
-    non-optimal:  {nonopt_stats[1]:.6f}  ({100*nonopt_stats[1]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
+    Training set: {train_stats[1]:.6f}  ({100*train_stats[1]/np.mean(output_data[train_idx, n]):.4f}% | true_mean={np.mean(output_data[train_idx, n]):.4f})
+    Testing set:  {test_stats[1]:.6f}  ({100*test_stats[1]/np.mean(output_data[test_idx, n]):.4f}% | true_mean={np.mean(output_data[test_idx, n]):.4f})
+    non-optimal:  {val_stats[1]:.6f}  ({100*val_stats[1]/np.mean(output_data[val_idx, n]):.4f}% | true_mean={np.mean(output_data[val_idx, n]):.4f})
 
 {pred} - Root Mean Squared Error Cost (RMSE):
-    Training set: {train_stats[2]:.6f}  ({100*train_stats[2]/np.mean(Y_train[:, n]):.4f}% | true_mean={np.mean(Y_train[:, n]):.4f})
-    Testing set:  {test_stats[2]:.6f}  ({100*test_stats[2]/np.mean(Y_test[:, n]):.4f}% | true_mean={np.mean(Y_test[:, n]):.4f})
-    non-optimal:  {nonopt_stats[2]:.6f}  ({100*nonopt_stats[2]/np.mean(non_optimal_output[:, n]):.4f}% | true_mean={np.mean(non_optimal_output[:, n]):.4f})
+    Training set: {train_stats[2]:.6f}  ({100*train_stats[2]/np.mean(output_data[train_idx, n]):.4f}% | true_mean={np.mean(output_data[train_idx, n]):.4f})
+    Testing set:  {test_stats[2]:.6f}  ({100*test_stats[2]/np.mean(output_data[test_idx, n]):.4f}% | true_mean={np.mean(output_data[test_idx, n]):.4f})
+    non-optimal:  {val_stats[2]:.6f}  ({100*val_stats[2]/np.mean(output_data[val_idx, n]):.4f}% | true_mean={np.mean(output_data[val_idx, n]):.4f})
 
 {pred} - spearman rank correlation:
     Training set: {train_stats[3][0]:.6f} (pvalue: {train_stats[3][1]})
     Testing set:  {test_stats[3][0]:.6f} (pvalue: {test_stats[3][1]})
-    non-optimal:  {nonopt_stats[3][0]:.6f} (pvalue: {nonopt_stats[3][1]})
+    non-optimal:  {val_stats[3][0]:.6f} (pvalue: {val_stats[3][1]})
 
 {pred} - R-squared (R²):
     Training set: {train_stats[4]:.6f} 
     Testing set:  {test_stats[4]:.6f}
-    non-optimal:  {nonopt_stats[4]:.6f}
+    non-optimal:  {val_stats[4]:.6f}
 """
         
     print(printstr)
