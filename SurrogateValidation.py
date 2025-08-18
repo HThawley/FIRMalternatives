@@ -7,7 +7,7 @@ Created on Mon Jul 28 14:24:00 2025
 import sys
 if "win" not in sys.platform:
     import matplotlib 
-    matplotlib.use("tkagg")
+    matplotlib.use("Agg")
 
 import numpy as np
 import pandas as pd
