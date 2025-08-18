@@ -302,7 +302,7 @@ class MLPmodel:
         start = dt.now()
         if verbose: print(f"Loading model from {filepath_with_ext}...")
 
-        with torch.serialization.safe_globals([numpy._core.multiarray._reconstruct]):
+        with torch.serialization.safe_globals([np._core.multiarray._reconstruct]):
             state = torch.load(filepath_with_ext, map_location=self.device)
         
         self.num_inputs = state['num_inputs']
