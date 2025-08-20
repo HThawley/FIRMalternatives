@@ -302,7 +302,7 @@ class MLPmodel:
         start = dt.now()
         if verbose: print(f"Loading model from {filepath_with_ext}...")
 
-        state = torch.load(filepath_with_ext, map_location=self.device, weights_only = True)
+        state = torch.load(filepath_with_ext, map_location=self.device)
         
         self.num_inputs = state['num_inputs']
         self.num_outputs = state['num_outputs']
